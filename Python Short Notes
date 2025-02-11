@@ -1,0 +1,622 @@
+greeting = 'Hello, Friends!'
+age = 35            #Integer
+speed = 4.5         #Float
+earth = True        #False
+number = 3e4
+
+#OPERATORS
+# Order of Operators
+# 1. **
+# 2. * / // %
+# 3. + -
+
+#standard division
+num1 = 7/2
+
+#power operator
+num2 = 2 ** 5
+
+#Reassignment
+age += 7
+age *= 10
+age -=10
+age /= 5
+
+text = 'Ashwani'+'Kesharwani'
+
+text = 'Ashwani'*5
+print(text)
+
+################################################################
+#User Input
+
+for counter in range(1,2):
+   # print('Number:',counter)
+    if(counter <= 1):
+        print('Ashwani')
+    else:
+        print('Finished')
+
+# IF Statement 
+age = int(input('What is your age? '))
+if age > 24:
+    print('Your are not eligible')
+    print('Thank you')
+elif age == 24:
+    print('You are exactly 24')
+else:
+    prin('You are eligible')
+    print('Thank you')
+	
+################################################################
+
+# Operators
+# Mathematical Operators
+
+
+
+#print(0.1+0.1+0.1)
+#print(2 ** 2 ** 3)
+
+#PRINT AND STRING
+
+print('Hello ', end='')
+print('Ashwani')
+
+first_name = 'Ashwani'
+print('Your first name is',first_name,'Welcome')
+
+# Logical operators
+# <  > <= >= == !=
+visa = input('Do you have visa? ')
+password = input('Input you password: ')
+if password == 'ashwani':
+    print('Correct Password')
+else:
+    print('Incorrect Password')
+
+age = int(input('What is you age: '))
+
+if age > 25 and password == 'ashwani':
+    print('You are welcome')
+else:
+    print('You are not eligible')
+ 
+if password == 'ashwani' or visa == 'yes':
+    print('You are welcome')
+else:
+    print('You are not eligible')
+	
+##############################################################
+
+
+# BITWISE OPERATORS
+# & | ~ ^ << >>
+
+bit1= 1
+bit2 = 2
+print('AND Operator',bit1 & bit2)
+print('OR Operator',bit1 | bit2)
+print('EX-OR Operator',bit1 ^ bit2)
+print('NOT Operator', ~bit1)
+print('RIGHT Operator',bit1 << bit2)
+print('LEFT Operator',bit1 >> bit2)
+
+#################################################################
+
+days = int(input('How many days ago have you purchased the item? '))
+if days <= 10:
+    conf = input('Have you used the item at all [y/n] ')
+    if conf == 'y':
+        notbroken = input('Has the item broken down on its own [y/n]? ')
+        if notbroken == 'y':
+            print('You can get a refund.')
+else:
+    print('You cannot get a refund.')
+	
+####################################################################
+
+# Loop
+print('''
+========================
+===SECRET NUMBER GAME===
+========================
+''')
+
+for a in range(1,6):
+    for b in range(1,6):
+        print(a,'x',b,'=', a*b)
+    
+
+counter = 1
+while counter < 11:
+    print(counter)
+    counter +=1
+print('Finished')
+
+for count in range(1,11):
+    print(count)
+print('Finished')
+
+for count in range(11):
+    print(count)
+print('Finished')
+
+for count in range(1,11,2):
+    print(count)
+print('Finished')
+
+while True:
+    name = input('Enter your name or type exit: ')
+    if(name == 'exit'):
+        break
+    print('Hello', name)
+    
+for i in range(1,21):
+    if(i % 5 == 0):
+        continue
+    print(i)
+
+###################################################################
+
+for x in 'i am having fun today':
+  print(x)
+
+while True:
+    releaseDate = int(input('When was Python 1.0 released? '))
+    if releaseDate == 1994 :
+        print('Correct!')
+        break
+    elif releaseDate > 1994:
+        print('It was earlier than that! ')
+    elif releaseDate < 1994:
+        print('It was later than that! ')
+        
+###################################################################
+
+#Intro LISTS (collections)
+#List "Lists are used to store multiple items in a single variable. Lists are one of 4 built-in 
+		data types in Python used to store collections of data."
+#Tuples "Tuples are used to store multiple items in a single variable. Tuple is one of 
+		4 built-in data types in Python used to store collections of data. "
+#Dictionaries "Dictionaries are used to store data values in key:value pairs. A dictionary is 
+		a collection which is ordered, changeable and do not allow duplicates."
+
+Note: The key difference between tuples and lists is that while
+	 tuples are immutable objects, lists are mutable. 
+This means tuples cannot be changed while lists can be modified.
+
+#LIST
+empty_list = []
+top_cities = ['New Your','Noida','Delhi','Chandigarh','Bengaluru']
+print(top_cities)
+print(top_cities[1])
+print(top_cities[-1])
+#Slicing [0:2] 
+print(top_cities[0:2])
+#Deleting Elements from a lists
+del top_cities[3:]      #remove from element 3
+
+city = ['noida','chennai','mumbai','pune','prayag','gungaon']
+for cities in city:
+    print('current city:',cities)
+	
+####################################################################
+
+spendings = [1346.0, 987.50, 1734.40, 2567.0, 3271.45, 2500.0, 2130.0, 2510.30, 2987.34, 3120.50, 4069.78, 1000.0]
+low = 0
+normal = 0
+high = 0
+for month in spendings :
+    if month < 1000:
+        low += 1
+    
+    elif month <= 2500:
+        normal += 1
+    
+    else:
+        high += 1
+    
+print('Numbers of months with low spendings: ' + str(low) + ', normal spendings: ' + str(normal) + ', high spendings: ' + str(high) + '.')
+
+connections = [
+    ('Amsterdam', 'Dublin', 100),
+    ('Amsterdam', 'Rome', 140),
+    ('Rome', 'Warsaw', 130),
+    ('Minsk', 'Prague', 95),
+    ('Stockholm', 'Rome', 190),
+    ('Copenhagen', 'Paris', 120),
+    ('Madrid', 'Rome', 135),
+    ('Lisbon', 'Rome', 170),
+    ('Dublin', 'Rome', 170),
+    ]
+    count = 0
+    total_time = 0
+    for x in connections:
+        for y in x:
+            if 'Rome' in connections:
+                total_time += connections[y]
+                count += 1
+                
+    print(total_time)
+    print(count)
+        
+################################################################################
+
+# CHANGING ELEMENT POSITION
+
+#first = input('Enter first number: ')
+#second = input('Enter Second number: ')
+first = 10
+second = 20
+print('Befor swapping',first, second)
+#temp = first
+#first = second
+#second = temp
+first, second = second, first
+print('After swapping',first,second)
+
+#sort() sorts the original list
+#sorted() gives back a new, sorted list, keeps the original unchange
+cities = ['Mumbai','Noida','Gungaon','Bengaluru','Chennai','Indore']
+#cities.sort()
+print(sorted(cities))
+print(cities)
+
+numbers = [11, 33, 55, 23, 44, 3, 99]
+numbers.sort()
+print(numbers)
+numbers.sort(reverse=True)
+print(numbers)
+
+#####################################################################################
+
+# List Checking Presence ::
+
+guests = ['Rahul','ved','Rajat','Neeraj','Dheeraj','Sonu','Monu']
+#name = input('Enter the name of guest: ')
+name = 'ved'
+if name in guests:
+    print('Welcome')
+else:
+    print('Sorry')
+    
+#Coping List
+
+O_list = 'John Sena'
+N_list = O_list
+O_list = 'Ashwani'
+print(N_list, O_list)
+
+#Modifying list_new (such as changing an element) 
+	will not affect list_num, and vice versa.
+list_num = [1,2,3,4,5]
+list_new = list_num
+list_num[0] = -6
+print('Original:',list_num,'New:',list_new)
+
+#The [:] syntax creates a shallow copy of list_num
+list_num = [1,2,3,4,5]
+list_new = list_num[:]
+list_num[0] = -6
+print('Original:',list_num,'New:',list_new)
+
+#List Comprehension
+#method 1
+nums = []
+for i in range(1,10):
+    nums.append(i)
+print(nums)
+
+#method 2
+num = [i for i in range(1,51)]
+print(num)
+
+print('for loop with modulas')
+num = [i for i in range(1,51) if i%3 != 0]
+print(num)
+
+#Nested List
+
+countries = ['UK','US','India','Russia']
+print(countries)
+countries = [1,'US','India',4]
+print(countries)
+
+cells = [['A1','A2','A3'],['B1','B2','B3']]
+print(cells[0][2])
+print(cells[1][2])
+
+for x in cells:
+    print('Element:',x)
+    
+Items = [['A1','A2','A3'],['B1','B2','B3']]
+for x in Items:
+    for y in x:
+        print('Element:',y)
+        
+######################################
+table = [[i for i in range(1,6)] for j in range(4)]
+print(table)
+
+######ADD MULTIPLY LISTS################
+list_us = ['New York','Chicago']
+list_uk = ['London', 'Bristol']
+list_all = list_us + list_uk
+print(list_all)
+
+############MULtiply
+print('Multiply Lists')
+list_num = [1,2] * 10
+print(list_num)
+
+#######Further String Features############
+
+fav_band = 'Green Day'
+print(fav_band[6])
+print(fav_band[:6])
+
+test = 'AshwanI'
+print(test.upper())
+print(test.lower())
+
+##########################################################################
+
+# TUPLES CONCEPTS #
+empty = (1,)
+print(empty)
+
+#Mutebly data 
+user_data = ('Ashwani','Prayag',1997)
+print(user_data[0])
+
+# TUPLE OPERATIONS
+
+userData = ('Ashwani','Prayag',1997)
+if 'Prayag' in userData:
+    print('Person comes from prayag')
+
+userData = ('Ashwani','Prayag',1997)
+for element in userData:
+    print(element)
+
+userData = ('Ashwani','Prayag',1997) + ('Engineer', 'Male')
+print(userData)
+
+numbers = (0, 1) * 10
+print(numbers)
+
+##########TUPLES in LIST###########
+
+city1 = ('London','UK', 8.98)
+city2 = ('Canberra','Australia', 3.2)
+city3 = ('UP','India', 26.3)
+capitals = [('London','UK', 8.98),('Canberra','Australia', 3.2),('UP','India', 26.3)]
+for capitals in capitals:
+    print('City:',capitals[0],', Country:',capitals[1],',Temp:',capitals[2])
+    
+    
+###########
+data = ('ashwani','UP',1997,[27, 56])
+data[3].append(24.11)
+print(data)
+
+####################################################################################
+
+# Intro To DICT
+
+emails = {'ashwani': 'ashwanix1997@gmail.com',
+        'shubham':  'shubhamx1997#gmail.com'
+        }
+# dict = { 'key': 'Value of key'}
+print(emails)
+
+#Dict Operations:
+grades = {}
+grades['ashwani'] = ['Embedded Engineer']
+grades['Rahul'] = ['Hardware Engineer']
+print(grades)
+grades.update({'Rahul':'Embedded Engineer'})
+print(grades)
+print(len(grades))
+if 'Rahul' in grades:
+    print('Rahul:',grades['Rahul'])
+    #del grades['Rahul']
+print(grades)
+
+########Itreate Dict############
+for el in grades:
+    print(el)
+    
+###############################
+for el in grades.keys():
+    print(el)
+
+for el in grades.values():
+    print(el)
+##################################
+for person, grades in grades.items():
+    print(person,'got',grades)
+
+###########################################################################################
+
+sample_dict = {
+    "mouth": "Mund",
+    "finger": "Finger",
+    "leg": "Bein",
+    "hand": "Hand",
+    "face": "Gesicht",
+    "nose": "Nase"
+}
+ 
+while True:
+    user_input = input('Enter a word in English or EXIT: ')
+    if user_input == 'EXIT':
+        break
+    if user_input in sample_dict:
+        print ('Translation:', sample_dict[user_input])
+    else:
+        print('No match!')
+ 
+print('Bye!')
+
+#################################################################################
+
+#########Introduction to Function in Python#########
+
+def greet():
+    print('Hello, My friend!')
+    
+greet()
+
+#####Function params
+input_numbers = [5.2, 5,3, 6.7,8.6,2.3]
+def get_average(input_numbers):
+    sum = 0.0
+    for number in input_numbers:
+        sum += number
+    average = sum/len(input_numbers)
+    print(average)
+
+get_average(input_numbers)
+
+###############################
+
+def print_letter(text, letter):
+    counter = 0
+    for char in text:
+        if char == letter:
+            counter += 1
+    print('Number of',letter, 'is', counter)
+
+test='welcome'
+letter='e'
+print_letter('ashwani kesharwani', 'a')
+print_letter(test,letter)
+
+##################################
+#print('Ashwani','How are you?',end='.',sep='-')
+########################################
+def print_letter_count(text, letter='a'):
+    counter = 0
+    for char in text:
+        if char == letter:
+            counter += 1
+    print('Number of',letter, 'is', counter)
+print_letter_count('How many letters are here?')
+
+##################### Name scope # #########
+
+def show_truth():
+    global mystory
+    mystory = 'New surprise me'
+    print(mystory)
+    
+mystory = 'surprise me'
+print(mystory)
+show_truth()
+print(mystory)
+
+############# NONE ###############
+
+x = None
+if x:
+    print('None is true')
+elif x is False:
+    print('None is False')
+else:
+    print('None is not true not false')
+    
+############ RETRUN #############
+
+def get_avg(input_numbers):
+    sum = 0.0
+    for number in input_numbers:
+        sum += number
+    average = sum / len(input_numbers)
+    return average
+
+print('The average is: ',get_avg([2,3,2,3,2]))
+
+#######################################################################
+
+########### Recursion in Python #############
+
+##### factorial to a given number
+
+def get_factorial(number):
+    factorial = 1
+    for x in range(1, number+1):
+        factorial *= x
+    return factorial
+    
+print(get_factorial(5))
+
+def get_factorial_recursive(number):
+    if number <= 1:
+        return 1
+    return number * get_factorial_recursive(number -1)
+    
+print(get_factorial_recursive(5))
+
+############## GENERATORS ################
+def get_numbers():
+    for i in range(1,4):
+        yield i
+        
+for x in get_numbers():
+    print(x)
+
+################ Exceptions ################
+
+try:
+    value = 0 # int(input('Enter a number: '))
+    print('The inverse of ',value, 'is',1/value)
+except ValueError:
+    print('Please provide correct input')
+except ZeroDivisionError:
+    print('You provided value zero, so division not posible')
+    
+############## Exception Hierarchy ###########
+
+#[BaseException]
+# --[Execption]-[SystemExit]-[KeyboardInterrupt]
+# --$[ArithmeticError]-%[LookupError]-[TypeError]-[ValueError]
+#    $[ZeroDivisionError]
+#    %[IndexError]
+#    %[KeyError]
+
+def get_day(user_info):
+    day = int(input('What is day of your bDay? '))
+    user_info.append(day)
+    
+def get_month(user_info):
+    month = int(input('what is the month(1-12) '))
+    user_info.append(month)
+
+def get_year(user_info):
+    year = int(input('What is the year of your bDay '))
+    user_info.append(year)
+
+def get_user_bday(user_info):
+    try:
+        get_day(user_info)
+        get_month(user_info)
+        get_year(user_info)
+        print('So your bDay is',user_info)
+    except ValueError:
+        print('You Entered Incorrect Data')
+
+print('Hi, I will collect some info about your bDay')
+user_info = []
+get_user_bday(user_info)
+
+############### Assertion are assumptions in our program that should always be true.
+
+def calculate_inverse(number):
+    assert(number != 0), 'got 0 as number'
+    return 1/number
+    
+calculate_inverse(0)
+
+
