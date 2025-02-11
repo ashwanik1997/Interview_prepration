@@ -1,0 +1,1440 @@
+Short C++ Notes:
+
+
+#include <iostream>
+#include <vector>
+int main() {
+    // Write C++ code here
+    const unsigned address = 0x100;
+    int number = 4;
+    double temp = 22.9;
+    bool user_alive = true;
+    std::string user_name = "Ashwani";
+    double temp_list[4] = {21.0, 22.5, 24.0,25.5}; 
+    std::vector<double> data = {21.0, 22.5, 24.0,25.5};
+    
+    std::cout << "Try programiz.pro"<<std::endl;
+    std::cout << 3+1 <<std::endl;
+    std::cout << number<<std::endl;
+    std::cout << temp<<std::endl;
+    std::cout << user_alive<<std::endl;
+    std::cout << user_name<<std::endl;
+    std::cout << temp_list[1]<<std::endl;
+    std::cout << address<<std::endl;
+    std::cout << data.at(0)<<std::endl;
+    data.at(0) = 20.5;
+    std::cout << data.at(0)<<std::endl;
+    data.push_back(17.5);
+    std::cout << data.at(0)<<std::endl;
+    return 0;
+}
+
+____________________________________________________________________
+
+
+#include <iostream>
+#include <vector>
+#include <numeric>
+using namespace std;
+int main() {
+    // Write C++ code here
+    string user_name;
+    cout << "What is your name? ";
+    cin >> user_name;
+    cout << user_name <<endl;
+    
+    vector<double> number_list = {10.2, 20.5, 14.3, 22.5};
+    double sum = accumulate(number_list.begin(), number_list.end(),0.0);
+    double avg = sum / number_list.size();
+    cout << "Avg value: " <<avg <<endl;
+
+    return 0;
+}
+____________________________________________________________________
+
+#include <iostream>
+using namespace std;
+
+namespace abc{
+    int tripleNumber(int number)
+    {
+        return number*3;
+    }
+}
+void sayHello(void)
+{
+    std::cout << "Hello" << endl;    
+}
+
+void userName (string name, int age)
+{
+    cout<< "Name: "<< name << " Age: "<< age << endl;
+}
+
+int squreNumber(int num)
+{
+    return num*num;
+}
+int main() {
+    // Write C++ code here
+    sayHello();
+    userName("Ashwani",27);
+    cout << squreNumber(5) << endl;
+    cout << abc::tripleNumber(4) <<endl;
+    return 0;
+}
+
+____________________________________________________________________
+
+#include <iostream>
+#include <vector>
+using namespace std;
+int main() {
+    cout << boolalpha;
+    double temp = 20.0;
+    cout << ((temp >=20.0) && (temp < 30.0)) << endl;
+    
+    if(temp > 20)
+        cout<<"Temperature is more than 20" << endl;
+    else if (temp == 20)
+    {
+            cout<<"Temperature is 20" << endl;
+    }
+    else
+    {
+        cout<<"Temperature is less than 20" << endl;
+    }
+
+    for(int i= 0; i < 5; i++)
+    {
+        cout << "hello" << endl;
+    }
+    int j = 0;
+    while(j< 5)
+    {
+        cout << "Hello" << endl;
+        j++;
+    }
+    
+    vector<double> temp_list = { 20.5, 21.5, 22.5, 23.5};
+    for(int k =0; k< temp_list.size(); k++)
+    {
+        cout << temp_list.at(k) << endl;
+    }
+    for(double temperature: temp_list){
+        cout << temperature << endl;
+    }
+    return 0;
+}
+
+____________________________________________________________________
+
+#include <iostream>
+#include <vector>
+
+using namespace std;
+//number_list
+void add_zero(vector<int> &number_list, int zero_num)
+{
+    for(int i=0; i < zero_num; i++)
+    {
+        number_list.push_back(0);
+    }
+    cout << "B. size of number list: "<< number_list.size() << endl; 
+}
+
+void print_list(const vector<int> &number_list)
+{
+    for(int number: number_list)
+    {
+        cout << number << endl;
+    }
+}
+
+int main() {
+    // Write C++ code here
+    vector<int> list = {5, 5, 4};
+    cout<<"A. size of number list: "<< list.size() << endl;
+    add_zero(list, 4);
+    cout<<"C. size of number list: "<< list.size() << endl;
+    cout << "Try programiz.pro";
+
+    return 0;
+}
+____________________________________________________________________
+
+
+/*   OOPS   */
+//CLASS
+
+#include <iostream>
+#include <string>
+
+using namespace std;
+
+class Robot
+{
+  public:
+    Robot(string name, int version)
+        :name(name), version(version),intr_temp(30.0)
+    {
+        // this->name = name;
+        // this->version = version;
+        // this->intr_temp = 30.0;
+    }
+    void say_hi()
+    {
+        cout << "Hello, my name is " <<name << ". ready to help!" << endl;
+    }
+    void init_hardware()
+    {
+        cout <<"Init hardware." << endl;
+    }
+    void print_info()
+    {
+        say_hi();
+        cout<<"Version: "<<endl;
+        cout<< "Temperature "<< intr_temp << endl;
+    }
+    
+  private:
+    string name;
+    int version;
+    double intr_temp;
+};
+
+int main() {
+    Robot robo("Noob ", 3.4);
+    robo.init_hardware();
+    robo.print_info();
+   
+    return 0;
+}
+
+____________________________________________________________________
+
+
+/*   OOPS   */
+//CLASS
+
+#include <iostream>
+#include <string>
+
+using namespace std;
+
+class Robot
+{
+  public:
+    Robot(string name, int version)
+        :name(name), version(version),intr_temp(30.0)
+    {
+        // this->name = name;
+        // this->version = version;
+        // this->intr_temp = 30.0;
+    }
+    void say_hi()
+    {
+        cout << "Hello, my name is " <<name << ". ready to help!" << endl;
+    }
+    void init_hardware()
+    {
+        cout <<"Init hardware." << endl;
+    }
+    void print_info()
+    {
+        say_hi();
+        cout<<"Version: "<<endl;
+        cout<< "Temperature "<< intr_temp << endl;
+    }
+    
+  private:
+    string name;
+    int version;
+    double intr_temp;
+};
+
+class RoboticArm: public Robot
+{
+    public:
+    RoboticArm(string name, int version, double reach);
+    void pickObject(double x, double y);
+    void dropObject(double x, double y);
+    private:
+        double reach;
+}
+
+RoboticArm::RoboticArm(string name, int version, double reach) : Robot(name,version), reach(reach)
+{
+    
+}
+void RoboticArm::pickObject(double x, double y)
+{
+    cout << "Picked Object from (" << x << ","<<y << ")" << endl;
+}
+void RoboticArm::dropObject(double x, double y)
+{
+    cout << "Placed Object to (" << x << ","<<y << ")" << endl;    
+}
+
+int main() {
+    Robot robo("Noob ", 3.4);
+    robo.init_hardware();
+    robo.print_info();
+   
+   RoboticArm arm("Bob",4, 300);
+   arm.print_info();
+   arm.pickObject(1,2);
+   arm.dropObject(3,4);
+    return 0;
+}
+____________________________________________________________________
+
+#include <iostream>
+#include <string>
+/* Class & Objects
+* Objects are entities in the real world.
+* Class is like a blueprint of these entities.
+
+Access Modifiers:-
+private: data & method accessible inside class
+public: data & method accessible to everyone
+protected: data & method accessible inside class & to its derrived class.
+*/
+
+
+using namespace std;
+
+class Teacher{
+    //Properties or attributes
+private:    
+    double salary;
+public:
+    string name;
+    string dept;
+    string subject;
+    
+    //Methods or Member function
+    void changeDept(string newDept)
+    {
+        dept = newDept;
+    }
+    void setSalary(double sal) // Setter function
+    {
+        salary = sal;
+    }
+    void getSalary()    // Getter Function
+    {
+        return salary;
+    }
+};
+
+class Student{
+    string name;
+    int rollnum;
+    
+};
+int main() {
+    std::cout << "Try programiz.pro";
+    
+    Teacher T1;
+    T1.name = "Ashwani";
+    T1.dept = "Electronics";
+    T1.subject = "Embedded";
+    // T1.salary = 50000.0;
+    
+    cout << T1.name << endl;
+    return 0;
+}
+____________________________________________________________________
+
+#include <iostream>
+
+/* OPPS Concepts
+___________________________________________________________
+[Constructor]: Constructor is a special method invoked automatically at time of object creation. Used for Initialisation.
+* Same name as class
+* Constructor doesn't have a return type.
+* Only called once (automatically), at object creation
+* Memory allocation happens when constructor is called.
+types of constructor
+a. non parameterized 
+b. parameterized constructor
+c. copy constructor
+Note: When we create multiple constroctor for a class i'e called 'Constructor Overloading'.
+   Constructor overloading property called as polymorphism.
+ 
+ 'this' is a special pointer in c++ that points to the current object.
+ this->prop is same as (*this).prop
+ 
+ Copy Constructor :- special constrictor(default) used to copy properties of one object into another. T1obj(&T2obj)
+ 
+ Shallow & Deep Copy Constructor
+ * A shallow copy of an object copies all of the member values from one object to another.
+ * A deep copy, on the other hand, not only copies the member values but also makes copies of any dynamically allocated memory that the members point to.
+____________________________________________________________
+1. Encapsulation
+    Encapsulation is wrapping up of data & member functions in a single unit called class.
+2.
+
+*/
+#define Enable      1
+#define Disable     0
+using namespace std;
+
+class Teacher{
+    //Properties or attributes
+private:    
+    double salary;
+public:
+    string name;
+    string dept;
+    string subject;
+    double income;
+    //Constructor
+
+
+//  Teacher() //Pass by reference
+//     {
+//         dept = "Electronics & Communication";
+//         cout <<"[0-Para] Constructor Called" <<endl;
+//     }
+    Teacher(Teacher &orgOBJ) //Pass by reference
+    {
+       this->name = orgOBJ.name;
+       this->dept = orgOBJ.dept ;
+       this->subject = orgOBJ.subject;
+       this->salary = orgOBJ.salary;
+        cout <<"Pass by reference Constructor Called" <<endl;
+    }
+    Teacher(string n, string d, string sub, double inc){
+        name = n;
+        dept = d;
+        subject = sub;
+        income = inc;
+        cout <<"[4-Para]Constructor Called" <<endl;
+    }
+    Teacher(string name, string dept, string sub)
+    {
+        this->name = name;
+        this->dept = dept;
+        this->subject = sub;
+    }
+
+
+
+    
+    //Methods or Member function
+    void changeDept(string newDept)
+    {
+        dept = newDept;
+    }
+    void getInfo()
+    {
+        cout <<"Name: "<< name <<endl;
+        cout <<"Subject: "<<subject <<endl;
+        cout <<"dept: "<< dept <<endl;
+    }
+    void setSalary(double sal) // Setter function
+    {
+        salary = sal;
+    }
+    double getSalary()    // Getter Function
+    {
+        return salary;
+    }
+};
+
+class Student{
+    string name;
+    int rollnum;
+    
+};
+
+class Account{
+private:
+    double balance;
+    string password;
+public:
+    string accountID;
+    string accName; 
+};
+int main() {
+    
+#if Disable    
+    Teacher T1; // Constructor will be called by default while we create object.
+    T1.name = "Ashwani";
+    // T1.dept = "Electronics";
+    T1.subject = "Embedded";
+    T1.salary = 50000.0;
+    cout << T1.name << endl;
+    cout << T1.dept << endl;
+#else
+    Teacher T2("Parimal", "CSE", "C++", 40000);
+    Teacher T3("Ramesh", "ECE", "digital");
+    
+    Teacher T4(T3); //Custom copy constructor
+#endif
+
+    
+    T2.getInfo();
+    T3.getInfo();
+    T4.getInfo();
+    return 0;
+}
+___________________________________________________________
+
+#include <iostream>
+
+using namespace std;
+
+//Shallow & Deep Copy Example 
+class Student{
+    public:
+    string name;
+    double* cgpaptr;
+    
+    Student(string name, double cgpa)
+    {
+        this->name= name;
+        cgpaptr = new double;
+        *cgpaptr = cgpa;
+    }
+    Student(Student &obj)
+    {
+        this->name= obj.name;
+        cgpaptr = new double; //added for deep copy
+        *cgpaptr = *obj.cgpaptr;
+    }
+    void getInfo()
+    {
+        cout << "name: "<< name << endl;
+        cout << "CGPA: "<< *cgpaptr << endl;
+    }
+};
+int main() {
+    //Shellow Copy 
+    Student std1("Rahul Kumar", 8.2);
+    Student std2(std1);
+    std1.getInfo();
+    
+    std2.name = "Neha";
+    *(std2.cgpaptr) = 9.2;
+    std2.getInfo();
+    
+    return 0;
+}
+___________________________________________________________
+
+#include <iostream>
+
+/*
+    OOPS 
+[Destructor]:-
+    Destructor does the opposite of constructor.
+    All the stack created by constructor will be cleared via destructor and compiler will also call it by default.
+    
+2. Inheritance : When properties & member function of base class are passed on to the derived class. It is use for code reusblility.
+
+*/
+using namespace std;
+
+class Student{
+    public:
+    string name;
+    double* cgpaptr;
+    
+    Student(string name, double cgpa)
+    {
+        this->name= name;
+        cgpaptr = new double;
+        *cgpaptr = cgpa;
+    }
+    ~Student()
+    {
+        cout << "Hi, I delete everything" << endl;
+    }
+
+    void getInfo()
+    {
+        cout << "name: "<< name << endl;
+        cout << "CGPA: "<< *cgpaptr << endl;
+    }
+};
+int main() {
+    //Shellow Copy 
+    Student std1("Rahul Kumar", 8.2);
+    std1.getInfo();
+    
+
+    
+    return 0;
+}
+___________________________________________________________
+
+#include <iostream>
+#include <string>
+/*
+2. Inheritance : When properties & member function of base class are passed on to the derived class. It is use for code reusblility 
+Modes of Inheritance :
+|__________|___________|__________|____________|
+|          |  Derived  | Derived  |  Derived   |
+|Base Class|  Private  | Protected|  Public    |
+|__________|___________|__________|____________|
+|private   | Non-Inter | Non-Inter|  Non-Inter |
+|protected | Private   | Protected| Protected  |
+|public    | Private   | Protected|  Public    |
+|__________|___________|__________|____________|
+
+Type of Inheritance :
+* Single Inheritance:
+    Exp: Parent -> Student
+* Multilevel Inheritance:
+    Exp: Parent -> Student   HOD(Student)
+* Multiple Interitance: 
+    Child which has two parents property.
+* Hierarchial Inheritance
+    Parent has multiple child property
+    class Person{
+        public:
+        string name;
+        int age;
+    };
+    class Student : public Person{
+        public:
+        int rollNum;
+    };
+    class Teacher : public Person{
+        public:
+        string subject;
+    }
+    
+* Hybrid Inheritance
+    Mix of All categories.
+*/  
+using namespace std;
+
+class Person {
+    public: 
+    string catgry;
+    int age;
+};
+class Teacher {
+    public: 
+    string subject;
+    double salary;
+};
+//Multiple Inheritance
+class TA: public Person, public Teacher{
+    
+};
+class Student : public Person {
+    public:
+    string name;
+    int rollNum;
+
+    void getInfo()
+    {
+        cout << "name: "<< name << endl;
+        cout << "Category: " << catgry << endl;
+        cout << "Age: "<< age << endl;
+        cout << "RollNumber: "<< rollNum << endl;        
+    }
+};
+int main() {
+    Student S1;
+    TA T1;
+    T1.catgry = "OBC";
+    T1.subject = "Math";
+    cout << T1.catgry <<endl;
+    cout << T1.subject <<endl;
+    
+    S1.catgry = "Gen";
+    S1.name = "Ashwani";
+    S1.age = 27;
+    S1.rollNum = 261;
+    S1.getInfo();
+    
+    return 0;
+}
+___________________________________________________________
+
+#include <iostream>
+#include <string>
+
+/*OOPS 
+3. Polymorphism: Polymorphism is the ablity of objects to take on different forms or behave in
+    different ways depending on the context in which they are used.
+    Poly (Multiple) Morph(Form)
+    * Compile Time Poly. (Statically)
+        *Function Overloading
+        *Constructore Overloading
+        *Operator OVerloading
+    * Run Time Poly.(Dynamic)
+        *Function Overriding: Parent & Child both contain the same function with different implementation.The Parent class function is said to be over ridden.
+        *Virtual Function: A virtual funtion is a member function that you expect to be redefined in derived classes.
+Virtual Function properties:-
+* Virtual function are dynmic in nature.
+* Defined by the keyword 'virtual' inside a base class and are always declared with a base class and overridden in a child class.
+* A virtual fucntion is called during runtime.
+*/
+using namespace std;
+class Student 
+{
+    public:
+    string name;
+  Student()
+  {
+      cout << "Non Parameterized Const" <<endl;
+  }
+  Student(string name)
+  {
+      this->name = name;
+      cout << "Parameterized Constructor" << endl;
+  }
+};
+
+class Print{
+    public:
+    void show(int x)
+    {
+        cout <<"Int-X: " << x <<endl;
+    }
+    void show(char ch)
+    {
+        cout << "Char-ch: " << ch << endl;
+    }
+};
+// RunTime Polymorphism
+class Parent{
+    public: 
+    void getInfo(){
+        cout << "Parent Class" <<endl;
+    }
+    
+   virtual void hello(){
+        cout <<"Hello from Parent" << endl;
+    }
+};
+class Child : public Parent{
+    public: 
+    void getInfo(){
+        cout << "Child Class" <<endl;
+    }
+    void hello(){
+        cout <<"Hello from child" << endl;
+    }
+};
+
+int main() {
+    // Write C++ code here
+    Student s1("Ashwani");
+    
+    Print P1;
+    P1.show(10);
+    P1.show('A');
+    ////////////////
+    Child ch;
+    ch.getInfo();
+    Parent par;
+    par.getInfo();
+    
+    ch.hello();
+    par.hello();
+    return 0;
+}
+___________________________________________________________
+
+#include <iostream>
+#include <string>
+
+/* Abstruction:- Hiding all unnecessary details & showing only the importabt parts.
+using Abstract Classes
+* Abstract classes are used to provide a base class from which other classes can be derived.
+* They can't be instantiated(object) and are meant to be inherited.
+* Abstract classes are typically used to define an interface for derived classes.
+
+Static Keyword:
+* static variables: Variable declared as static in a function are created & initiaised once for the lifetime of the program. //in function
+static variables in a class are created & initialised once. THey are shared by all the objects of the class. // in CLass
+Static object:
+*/
+
+using namespace std;
+
+class Shape{   // abstract class
+  virtual void draw() = 0; //pure virtual function  
+};
+class Circle : public Shape {
+    public:
+    void draw(){
+        cout << "Drawing a circle" << endl;
+    }
+};
+
+
+void func(){
+   static int x = 0; // init statement run 1 time
+    cout << "x :" << x << endl;
+    x++;
+}
+
+class sir {
+    public: 
+    int x;
+    void incX()
+    {
+        x = x+1;
+    }
+};
+
+ class AVR {
+     public :
+     AVR(){
+         cout << "Counstructor "<< endl;
+     }
+     ~AVR(){
+         cout << "Counstructor "<< endl;
+     }
+ };
+
+int main() {
+    Circle c;
+    sir A;
+    A.x = 0;
+    cout << A.x << endl;
+    A.incX();
+    cout << A.x << endl;
+    c.draw();
+    
+    func();
+    func();
+    func();
+    
+    if(true){
+        static AVR obj;
+    }
+    cout << "EOL :"<< endl;
+    return 0;
+}
+___________________________________________________________
+
+#include <iostream>
+/*
+Friend Function
+A friend class can access private and protected members of other classes in which it is declared as a friend. It is sometimes useful to allow a particular class to access private and protected members of other classes. For example, a LinkedList class may be allowed to access private members of Node.
+
+We can declare a friend class in C++ by using the friend keyword.
+
+*/
+using namespace std;
+class Complex {
+    int a, b;
+    
+    public :
+    void setNum(int n1, int n2)
+    {
+        a = n1;
+        b = n2;
+    }
+    friend Complex sumComplex (Complex a1, Complex b1);
+    void printNum()
+    {
+        cout << "Your number is " <<a<< " + " <<b<< "i" <<endl;
+    }
+};
+
+Complex sumComplex (Complex a1, Complex b1)
+{
+    Complex c1;
+    c1.setNum((a1.a + b1.a),(a1.b + b1.b));
+    return c1;
+}
+int main() {
+    // Write C++ code here
+    
+    Complex c1, c2, sum;
+    c1.setNum(1, 4);
+    c2.setNum(5, 8);
+    c1.printNum();
+    c2.printNum();
+    sum = sumComplex(c1, c2);
+    sum.printNum();
+    return 0;
+}
+___________________________________________________________
+
+#include <iostream>
+#include <string>
+
+/*
+Templates in C++
+Templates are powerful features of C++ which allows you to write generic programs. In simple term, we can create a single function or a class to work with different data types using templates.
+It can be used in two different ways:
+* Class Templates
+* Function Templates
+
+Basically template provide use faclity to ignore
+data type while pass parameter.
+*/
+using namespace std;
+
+template <class T> //syntex
+T sum (T a, T b)
+{
+    cout << "Sum = " << a+b << endl;
+    return a+b;
+}
+template <typename X>
+class CompMax {
+    private:
+    int Num1, Num2;
+    public:
+    CompMax (X a, X b)
+    {
+        Num1 = a;
+        Num2 = b;
+    }
+    void check()
+    {
+        if(Num1 > Num2)
+        {
+            cout <<"Num1 is Greater" << endl;
+        }
+        else
+        {
+            cout <<"Num2 is Greater" << endl;
+        }
+    }
+};
+
+
+int main() {
+    sum(2,3);
+    CompMax <float> obj1(5.3 ,5.6);
+    obj1.check();
+    CompMax <int> obj2(5 ,2);
+    obj2.check();
+    return 0;
+}
+___________________________________________________________________
+
+// Online C++ compiler to run C++ program online
+#include <iostream>
+#include <string>
+/*
+Exception handling in C++
+
+What is a C++ Exception?
+An exception is an unexpected problem that arises during the execution of a program our program terminates suddenly with some errors/issues. Exception occurs during the running of the program (runtime).
+
+Types of C++ Exception
+There are two types of exceptions in C++
+
+Synchronous: Exceptions that happen when something goes wrong because of a mistake in the input data or when the program is not equipped to handle the current type of data it’s working with, such as dividing a number by zero.
+Asynchronous: Exceptions that are beyond the program’s control, such as disc failure, keyboard interrupts, etc.
+C++ provides an inbuilt feature for Exception Handling. It can be done using the following specialized keywords: try, catch, and throw with each having a different purpose.
+1. try in C++
+The try keyword represents a block of code that may throw an exception placed inside the try block. It’s followed by one or more catch blocks. If an exception occurs, try block throws that exception.
+
+2. catch in C++
+The catch statement represents a block of code that is executed when a particular exception is thrown from the try block. The code to handle the exception is written inside the catch block.
+
+3. throw in C++
+An exception in C++ can be thrown using the throw keyword. When a program encounters a throw statement, then it immediately terminates the current function and starts finding a matching catch block to handle the thrown exception.
+
+*/
+
+using namespace std;
+
+class Printer {
+  string name;
+  int avl_paper;
+  
+  public: 
+  Printer(string _name, int _avl_paper)
+  {
+      name = _name;
+      avl_paper = _avl_paper;
+  }
+  void print(string txtdoc)
+  {
+      int reqPaper = txtdoc.length() / 10; 
+      if(reqPaper > avl_paper)
+      {
+        //   throw "***No paper***"; //will catch string catch
+        // throw 101; ////will catch int catch
+        throw '#';  // default catch handle
+      }
+      cout <<"Printing ...\n" << txtdoc <<endl;
+      avl_paper -= reqPaper;
+  }
+};
+
+int main() {
+    Printer myPrinter("HP Deskjet 7723", 10);
+    try {
+        myPrinter.print("Hello, My name is Ashwani and I'm Software engineer in Bengaluru");
+        myPrinter.print("Hello, My name is Ashwani and I'm Software engineer in Bengaluru");
+        myPrinter.print("Hello, My name is Ashwani and I'm Software engineer in Bengaluru");
+        myPrinter.print("Hello, My name is Ashwani and I'm Software Engineer in Bengaluru");
+    }
+    catch (const char * txtException){
+        cout <<"Exception: "<< txtException <<endl; 
+    }
+    catch(int excpCode)
+    {
+        cout << "Exception Code: "<< excpCode << endl;
+    }
+    catch(...)  // default catch handler
+    {
+        cout << "Exception occured!" << endl;    
+    }
+    return 0;
+}
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//Encapsulation Example
+#include <iostream>
+#include <string>
+
+using namespace std;
+
+class Employee {
+private:
+    string Name;
+    string Company;
+    int Salary;
+public:
+    void setName(string name) {
+        Name = name;
+    }
+    string getName() {
+        return Name;
+    }
+    void setCompany(string company) {
+        Company = company;
+    }
+    string getCompany() {
+        return Company;
+    }
+    void setSalary(int salary) {
+        Salary = salary;
+    }
+    int getSalary() {
+        return Salary;
+    }
+
+    void introduceYourself() {
+        cout << "Name: " << Name << endl;
+        cout << "Company: " << Company << endl;
+        cout << "Salary: " << Salary << endl;
+    }
+
+    Employee(string name, string company, int salary) {
+        Name = name;
+        Company = company;
+        Salary = salary;
+    }
+};
+
+int main() {
+    Employee Emp1("Ashwani", "HM", 70);
+    Emp1.introduceYourself();
+
+    Employee Emp2("Shubham", "HM", 70);
+    Emp2.introduceYourself();
+
+    Employee Emp3("Rahul", "HM", 40000);
+    Emp3.introduceYourself();
+
+    Emp1.setSalary(70000);
+    cout << Emp1.getName() << " is working at " << Emp1.getCompany() << " and his salary is " << Emp1.getSalary() << endl;
+
+    return 0;
+}
+
++++++++++++++++++++++++++++++++++++++++++++++++
+
+// Abstraction Example
+#include <iostream>
+#include <string>
+
+using namespace std;
+
+class AbstractEmployee {
+   virtual void AskForPromotion() = 0;
+};
+
+class Employee:AbstractEmployee {
+private:
+    string Name;
+    string Company;
+    int Salary;
+public:
+    void setName(string name) {
+        Name = name;
+    }
+    string getName() {
+        return Name;
+    }
+    void setCompany(string company) {
+        Company = company;
+    }
+    string getCompany() {
+        return Company;
+    }
+    void setSalary(int salary) {
+        Salary = salary;
+    }
+    int getSalary() {
+        return Salary;
+    }
+
+    void introduceYourself() {
+        cout << "Name: " << Name << endl;
+        cout << "Company: " << Company << endl;
+        cout << "Salary: " << Salary << endl;
+    }
+    void AskForPromotion()
+    {
+        if(Salary > 70000)
+        {
+            cout << Name << " got promoted" <<endl;
+        }
+        else 
+        {
+            cout << Name << ", Sorry  no promotion for you" << endl;
+        }
+    }
+
+    Employee(string name, string company, int salary) {
+        Name = name;
+        Company = company;
+        Salary = salary;
+    }
+};
+
+int main() {
+    Employee Emp1("Ashwani", "HM", 70);
+    Emp1.introduceYourself();
+
+    Employee Emp2("Shubham", "HM", 70);
+    Emp2.introduceYourself();
+
+    Employee Emp3("Rahul", "HM", 40000);
+    Emp3.introduceYourself();
+
+    Emp1.setSalary(71000);
+    cout << Emp1.getName() << " is working at " << Emp1.getCompany() << " and his salary is " << Emp1.getSalary() << endl;
+
+    Emp1.AskForPromotion();
+    return 0;
+}
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//Inheritance
+#include <iostream>
+#include <string>
+
+using namespace std;
+
+class AbstractEmployee {
+   virtual void AskForPromotion() = 0;
+};
+
+class Employee:AbstractEmployee {
+private:
+    string Company;
+    int Salary;
+protected:
+    string Name;
+public:
+    void setName(string name) {
+        Name = name;
+    }
+    string getName() {
+        return Name;
+    }
+    void setCompany(string company) {
+        Company = company;
+    }
+    string getCompany() {
+        return Company;
+    }
+    void setSalary(int salary) {
+        Salary = salary;
+    }
+    int getSalary() {
+        return Salary;
+    }
+
+    void introduceYourself() {
+        cout << "Name: " << Name << endl;
+        cout << "Company: " << Company << endl;
+        cout << "Salary: " << Salary << endl;
+    }
+    void AskForPromotion()
+    {
+        if(Salary > 70000)
+        {
+            cout << Name << " got promoted" <<endl;
+        }
+        else 
+        {
+            cout << Name << ", Sorry  no promotion for you" << endl;
+        }
+    }
+
+    Employee(string name, string company, int salary) {
+        Name = name;
+        Company = company;
+        Salary = salary;
+    }
+};
+
+class Developer: public Employee {
+public:
+    string progLanguage;
+    Developer(string name, string company, int salary, string FavprogLanguage) : Employee(name, company, salary)
+    {
+     progLanguage = FavprogLanguage;
+    }
+    void FixBug()
+    {
+        cout << Name << " Fixed bug using " << progLanguage <<endl;
+    }
+};
+
+class Manager:public Employee {
+public:
+    string Department;
+    
+    void Responsibility() {
+        cout << Name << " is manager of " << Department << ", Who manages all projects" << endl;
+    }
+    Manager(string name, string company, int salary, string department) : Employee(name, company, salary) 
+    {
+        Department = department;
+
+    }
+};
+int main() {
+    Employee Emp1("Ashwani", "HM", 70);
+    Emp1.introduceYourself();
+
+    Employee Emp2("Shubham", "HM", 70);
+    Emp2.introduceYourself();
+
+    Employee Emp3("Rahul", "HM", 40000);
+    Emp3.introduceYourself();
+    
+    Developer dev("AshwaniK","HM",80000,"C++");
+    dev.FixBug();
+    Emp1.setSalary(71000);
+    cout << Emp1.getName() << " is working at " << Emp1.getCompany() << " and his salary is " << Emp1.getSalary() << endl;
+
+    dev.AskForPromotion();
+    
+    Manager Man("Sagar","HM",100000, "ESS");
+    Man.Responsibility();
+    return 0;
+}
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++===
+
+//Polymorphism
+#include <iostream>
+#include <string>
+
+using namespace std;
+
+class AbstractEmployee {
+   virtual void AskForPromotion() = 0;
+};
+
+class Employee:AbstractEmployee {
+private:
+    string Company;
+    int Salary;
+protected:
+    string Name;
+public:
+    void setName(string name) {
+        Name = name;
+    }
+    string getName() {
+        return Name;
+    }
+    void setCompany(string company) {
+        Company = company;
+    }
+    string getCompany() {
+        return Company;
+    }
+    void setSalary(int salary) {
+        Salary = salary;
+    }
+    int getSalary() {
+        return Salary;
+    }
+
+    void introduceYourself() {
+        cout << "Name: " << Name << endl;
+        cout << "Company: " << Company << endl;
+        cout << "Salary: " << Salary << endl;
+    }
+    void AskForPromotion()
+    {
+        if(Salary > 70000)
+        {
+            cout << Name << " got promoted" <<endl;
+        }
+        else 
+        {
+            cout << Name << ", Sorry  no promotion for you" << endl;
+        }
+    }
+    virtual void Work ()
+    {
+        cout << Name << " is doing his work" <<endl;
+    }
+
+    Employee(string name, string company, int salary) {
+        Name = name;
+        Company = company;
+        Salary = salary;
+    }
+};
+
+class Developer: public Employee {
+public:
+    string progLanguage;
+    Developer(string name, string company, int salary, string FavprogLanguage) : Employee(name, company, salary)
+    {
+     progLanguage = FavprogLanguage;
+    }
+    void FixBug()
+    {
+        cout << Name << " Fixed bug using " << progLanguage <<endl;
+    }
+    void Work ()
+    {
+        cout << Name << " is developing softwares " <<endl;
+    }
+};
+
+class Manager:public Employee {
+public:
+    string Department;
+    
+    void Responsibility() {
+        cout << Name << " is manager of " << Department << ", Who manages all projects" << endl;
+    }
+    Manager(string name, string company, int salary, string department) : Employee(name, company, salary) 
+    {
+        Department = department;
+
+    }
+    void Work ()
+    {
+        cout << Name << " is managing projects " <<endl;
+    }
+};
+int main() {
+    Employee Emp1("Ashwani", "HM", 70);
+    Emp1.introduceYourself();
+
+    Employee Emp2("Shubham", "HM", 70);
+    Emp2.introduceYourself();
+
+    Employee Emp3("Rahul", "HM", 40000);
+    Emp3.introduceYourself();
+    
+    Developer dev("AshwaniK","HM",80000,"C++");
+    dev.FixBug();
+    Emp1.setSalary(71000);
+    cout << Emp1.getName() << " is working at " << Emp1.getCompany() << " and his salary is " << Emp1.getSalary() << endl;
+
+    dev.AskForPromotion();
+    
+    Manager man("Sagar","HM",100000, "ESS");
+    man.Responsibility();
+    // dev.Work();
+    // man.Work();
+    
+    Employee * empl1 = &dev;
+    Employee * empl2 = &man;
+    Emp2.Work();
+    empl1->Work();
+    empl2->Work();
+    return 0;
+}
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++=
+// Structure in C++ 
+#include <iostream>
+#include <string>
+#include <cstring>
+using namespace std;
+
+struct Smartphone {
+  string Brand;
+  string Model;
+  string Type;
+  int Ram;
+  int Rom;
+  int price;
+};
+
+struct Person {
+  string Name;
+  string city;
+  Smartphone smartphone;
+};
+
+void print(Smartphone phone)
+{
+    cout << "Brand: " <<phone.Brand <<endl;
+    cout << "Model: " <<phone.Model <<endl;
+    cout << "Type: " << phone.Type <<endl;
+    cout << "Ram: " << phone.Ram <<endl;
+    cout << "Storage: "<< phone.Rom << endl;
+    cout << "Price: " << phone.price <<endl;
+    
+}
+void user(Person per)
+{   
+    cout << "Name: " <<per.Name <<endl;
+    cout << "City: " <<per.city <<endl;
+    print(per.smartphone);
+}
+
+int main() {
+    
+    Smartphone phone1;
+    Person person;
+    
+    phone1.Brand = "Vivo";
+    phone1.Model = "x100pro";
+    phone1.Type = "Android";
+    phone1.Ram = 16;
+    phone1.Rom = 512;
+    phone1.price = 80000;
+    
+    Smartphone phone2;
+    phone2.Brand = "Vivo";
+    phone2.Model = "x200pro";
+    phone2.Type = "Android";
+    phone2.Ram = 16;
+    phone2.Rom = 512;
+    phone2.price = 90000;
+    
+    person.Name = "Ashwani";
+    person.city = "Bengaluru";
+    person.smartphone = phone2;
+    print(phone1);
+    user(person);
+
+
+    return 0;
+}
