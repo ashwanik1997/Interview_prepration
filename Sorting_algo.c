@@ -80,8 +80,8 @@ void InsertionSort (int arr[], int len)
 void swaping(int a[], int b[], int i, int j)
 {
     int temp = a[i];
-    a[i] = b[i];
-    b[i] = temp;
+    a[i] = b[j];
+    b[j] = temp;
 }
 
 void SelectionSort (int arr[], int len)
