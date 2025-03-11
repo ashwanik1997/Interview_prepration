@@ -77,11 +77,12 @@ void InsertionSort (int arr[], int len)
     printf("\n\t\tInsertion Sort \n");
     Display_Sorted_Array(arr, len);
 }
-void swaping(int a[], int b[], int i, int j)
+
+void swap(int arr[], int i, int j)
 {
-    int temp = a[i];
-    a[i] = b[j];
-    b[j] = temp;
+    int temp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = temp;
 }
 
 void SelectionSort (int arr[], int len)
@@ -96,17 +97,10 @@ void SelectionSort (int arr[], int len)
                 min_pos = j;
             }
         }
-        swaping(arr, arr, i, min_pos);
+        swap(arr, i, min_pos);
     }
     printf("\n\t\tSelection Sort \n");
     Display_Sorted_Array(arr, len);
-}
-
-void swap(int arr[], int i, int j)
-{
-    int temp = arr[i];
-    arr[i] = arr[j];
-    arr[j] = temp;
 }
 
 void QuickSort(int arr[], int len)
