@@ -1,90 +1,91 @@
-// Online C compiler to run C program online
-/*
-    Circular Buffer, circular queue, ring buffer
-*/
-
 #include <stdio.h>
+#include <stdlib.h>
 
-#define BUFFER_SIZE 6
-int head = 0;
-int tail = 0;
-int isFull_Flag = 0;
-int CircularBuffer[BUFFER_SIZE];
-int is_BufferFull(void)
-{
-    return isFull_Flag;
-}
-int is_BufferEmpty(void)
-{
-    int temp = 0;
-    
-    if((head == tail) && (isFull_Flag != 1))
-    {
-        temp = 1;
-    }
-    return temp;
+#define BUFFER_SIZE 5 // Define the size of the circular buffer
+
+typedef struct {
+    int buffer[BUFFER_SIZE]; // Array to store the buffer
+    int head;               // Points to the front of the buffer
+    int tail;               // Points to the end of the buffer
+    int size;               // Tracks the current number of elements
+} CircularBuffer;
+
+// Initialize the circular buffer
+void initBuffer(CircularBuffer* cb) {
+    cb->head = 0;
+    cb->tail = 0;
+    cb->size = 0;
 }
 
-void Status(void)
-{
-    printf("\nHead = %d    Tail = %d    isFull_Flag = %d", head, tail, isFull_Flag);
+// Check if the buffer is full
+int isFull(CircularBuffer* cb) {
+    return cb->size == BUFFER_SIZE;
 }
 
-void WritetoBuffer(int data_element)
-{
-    if(is_BufferFull())
-    {
-        printf("\nBuffer is Full");
-    }
-    else
-    {
-        CircularBuffer[head] = data_element;
-        printf("\nWrite to Buffer: %d",CircularBuffer[head]);
-        head = (head + 1) % BUFFER_SIZE;
-        if(head == tail)
-        {
-            isFull_Flag = 1;
-        }
-    }
+// Check if the buffer is empty
+int isEmpty(CircularBuffer* cb) {
+    return cb->size == 0;
 }
 
-void ReadfromBuffer(int * data_element)
-{
-    if(is_BufferEmpty())
-    {
-        printf("\nBuffer is Empty");
+// Add an element to the circular buffer
+void enqueue(CircularBuffer* cb, int item) {
+    if (isFull(cb)) {
+        printf("Buffer is full! Cannot enqueue %d\n", item);
+        return;
     }
-    else
-    {
-        *data_element = CircularBuffer[tail];
-        printf("\nRead from Buffer: %d",CircularBuffer[tail]);
-        tail = (tail + 1) % BUFFER_SIZE;
-        isFull_Flag = 0;
+
+    cb->buffer[cb->tail] = item;
+    cb->tail = (cb->tail + 1) % BUFFER_SIZE; // Wrap around the buffer
+    cb->size++;
+}
+
+// Remove an element from the circular buffer
+int dequeue(CircularBuffer* cb) {
+    if (isEmpty(cb)) {
+        printf("Buffer is empty! Cannot dequeue\n");
+        return -1; // Return a special value to indicate failure
     }
+
+    int item = cb->buffer[cb->head];
+    cb->head = (cb->head + 1) % BUFFER_SIZE; // Wrap around the buffer
+    cb->size--;
+    return item;
+}
+
+// Display the buffer's current elements
+void displayBuffer(CircularBuffer* cb) {
+    printf("Circular Buffer: ");
+    if (isEmpty(cb)) {
+        printf("Empty\n");
+        return;
+    }
+
+    for (int i = 0, index = cb->head; i < cb->size; i++) {
+        printf("%d ", cb->buffer[index]);
+        index = (index + 1) % BUFFER_SIZE; // Wrap around the buffer
+    }
+    printf("\n");
 }
 
 int main() {
-    // Write C code here
-    int cnt;
-    ReadfromBuffer(&cnt);
-    Status();
-    WritetoBuffer(10);
-    Status();
-    WritetoBuffer(20);
-    Status();
-    WritetoBuffer(30);
-    Status();
-    WritetoBuffer(40);
-    Status();
-    WritetoBuffer(50);
-    Status();
-    WritetoBuffer(60);
-    Status();
-    ReadfromBuffer(&cnt);
-    Status();
-    ReadfromBuffer(&cnt);
-    Status();
-    ReadfromBuffer(&cnt);
-    Status();
+    CircularBuffer cb;
+    initBuffer(&cb);
+
+    enqueue(&cb, 10);
+    enqueue(&cb, 20);
+    enqueue(&cb, 30);
+    enqueue(&cb, 40);
+    enqueue(&cb, 50); // Buffer becomes full
+    displayBuffer(&cb);
+
+    enqueue(&cb, 60); // Attempt to enqueue when buffer is full
+
+    printf("Dequeued: %d\n", dequeue(&cb));
+    printf("Dequeued: %d\n", dequeue(&cb));
+    displayBuffer(&cb);
+
+    enqueue(&cb, 60); // Enqueue after dequeuing elements
+    displayBuffer(&cb);
+
     return 0;
 }
