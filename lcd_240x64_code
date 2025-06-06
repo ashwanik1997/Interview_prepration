@@ -1,0 +1,206 @@
+// Display pin connections to STM32F429
+#define DISP_FG      // Frame Ground - Connect to board ground
+#define DISP_VSS     // Logic Ground - Connect to board ground
+#define DISP_VDD     // Logic Power (3.3V or 5V depending on display)
+#define DISP_V0      // LCD Bias Voltage (contrast) - Connect to potentiometer
+#define DISP_WR      GPIO_PIN_0  // GPIOA - Write signal
+#define DISP_RD      GPIO_PIN_1  // GPIOA - Read signal
+#define DISP_CE      GPIO_PIN_2  // GPIOA - Chip enable
+#define DISP_CD      GPIO_PIN_3  // GPIOA - Command/Data select
+#define DISP_BL_A    GPIO_PIN_4  // GPIOA - Backlight anode
+#define DISP_RESET   GPIO_PIN_5  // GPIOA - Reset
+#define DISP_DB0     GPIO_PIN_0  // GPIOB - Data bus bit 0
+// ... continue for DB1-DB7 on GPIOB pins 1-7
+#define DISP_FS      GPIO_PIN_8  // GPIOB - Font selection
+#define DISP_BL_K    GPIO_PIN_9  // GPIOB - Backlight cathode
+
+
+#include "stm32f4xx_hal.h"
+
+// Display dimensions
+#define DISPLAY_WIDTH 240
+#define DISPLAY_HEIGHT 64
+#define DISPLAY_PAGES (DISPLAY_HEIGHT/8) // 8 pages for 64 rows
+
+// Function prototypes
+void Display_Init(void);
+void Display_WriteCommand(uint8_t cmd);
+void Display_WriteData(uint8_t data);
+void Display_Reset(void);
+void Display_SetPosition(uint8_t x, uint8_t page);
+void Display_Clear(void);
+void Display_WriteString(uint8_t x, uint8_t page, char *str);
+void Display_DrawPixel(uint8_t x, uint8_t y);
+void Display_DrawLine(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1);
+void Display_DrawRectangle(uint8_t x, uint8_t y, uint8_t width, uint8_t height);
+
+// Initialize GPIO and display
+void Display_Init(void) {
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    
+    // Enable GPIO clocks
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    
+    // Configure control pins (WR, RD, CE, CD, RESET, FS)
+    GPIO_InitStruct.Pin = DISP_WR | DISP_RD | DISP_CE | DISP_CD | DISP_RESET | DISP_BL_A;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    
+    // Configure data bus (DB0-DB7)
+    GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | 
+                          GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    
+    // Configure FS and backlight cathode
+    GPIO_InitStruct.Pin = DISP_FS | DISP_BL_K;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    
+    // Reset the display
+    Display_Reset();
+    
+    // Initialize display controller
+    Display_WriteCommand(0x40); // Display start line 0
+    Display_WriteCommand(0xA0); // ADC select normal
+    Display_WriteCommand(0xC8); // Common output mode select reverse
+    Display_WriteCommand(0xA3); // LCD bias 1/9
+    Display_WriteCommand(0x2F); // Power control set (booster, regulator, follower on)
+    Display_WriteCommand(0x26); // Set resistor ratio
+    Display_WriteCommand(0x81); // Set electronic volume
+    Display_WriteCommand(0x1A); // Electronic volume value (contrast)
+    Display_WriteCommand(0xFA); // Set power control
+    Display_WriteCommand(0x90); // Set power control
+    Display_WriteCommand(0xAF); // Display on
+    
+    // Set font selection (if needed)
+    HAL_GPIO_WritePin(GPIOB, DISP_FS, GPIO_PIN_SET); // or GPIO_PIN_RESET depending on your font
+    
+    // Turn on backlight
+    HAL_GPIO_WritePin(GPIOA, DISP_BL_A, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOB, DISP_BL_K, GPIO_PIN_RESET);
+    
+    // Clear display
+    Display_Clear();
+}
+
+// Reset the display
+void Display_Reset(void) {
+    HAL_GPIO_WritePin(GPIOA, DISP_RESET, GPIO_PIN_RESET);
+    HAL_Delay(10);
+    HAL_GPIO_WritePin(GPIOA, DISP_RESET, GPIO_PIN_SET);
+    HAL_Delay(10);
+}
+
+// Write a command to the display
+void Display_WriteCommand(uint8_t cmd) {
+    // Set CD to command mode
+    HAL_GPIO_WritePin(GPIOA, DISP_CD, GPIO_PIN_RESET);
+    
+    // Set data bus
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, (cmd & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, (cmd & 0x02) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    // ... continue for all 8 data bits
+    
+    // Pulse WR signal
+    HAL_GPIO_WritePin(GPIOA, DISP_WR, GPIO_PIN_RESET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(GPIOA, DISP_WR, GPIO_PIN_SET);
+}
+
+// Write data to the display
+void Display_WriteData(uint8_t data) {
+    // Set CD to data mode
+    HAL_GPIO_WritePin(GPIOA, DISP_CD, GPIO_PIN_SET);
+    
+    // Set data bus
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, (data & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, (data & 0x02) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    // ... continue for all 8 data bits
+    
+    // Pulse WR signal
+    HAL_GPIO_WritePin(GPIOA, DISP_WR, GPIO_PIN_RESET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(GPIOA, DISP_WR, GPIO_PIN_SET);
+}
+
+// Set cursor position
+void Display_SetPosition(uint8_t x, uint8_t page) {
+    if(x >= DISPLAY_WIDTH) x = DISPLAY_WIDTH - 1;
+    if(page >= DISPLAY_PAGES) page = DISPLAY_PAGES - 1;
+    
+    Display_WriteCommand(0xB0 | page);  // Set page address
+    Display_WriteCommand(0x10 | (x >> 4));  // Set column address upper 4 bits
+    Display_WriteCommand(x & 0x0F);     // Set column address lower 4 bits
+}
+
+// Clear the display
+void Display_Clear(void) {
+    for(uint8_t page = 0; page < DISPLAY_PAGES; page++) {
+        Display_SetPosition(0, page);
+        for(uint8_t col = 0; col < DISPLAY_WIDTH; col++) {
+            Display_WriteData(0x00);
+        }
+    }
+}
+
+// Draw a string at specified position
+void Display_WriteString(uint8_t x, uint8_t page, char *str) {
+    Display_SetPosition(x, page);
+    while(*str) {
+        // This is a basic implementation - you'll need to add your font data
+        Display_WriteData(*str++); // Replace with actual font data lookup
+    }
+}
+
+// Draw a pixel at specified coordinates
+void Display_DrawPixel(uint8_t x, uint8_t y) {
+    if(x >= DISPLAY_WIDTH || y >= DISPLAY_HEIGHT) return;
+    
+    uint8_t page = y / 8;
+    uint8_t mask = 1 << (y % 8);
+    
+    Display_SetPosition(x, page);
+    // Read current data, modify, and write back
+    // Note: You'll need to implement Display_ReadData() for this
+    // For now, we'll just set the pixel without reading first
+    Display_WriteData(mask);
+}
+
+// Basic line drawing function
+void Display_DrawLine(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1) {
+    // Bresenham's line algorithm implementation
+    // Implementation omitted for brevity
+}
+
+// Draw a rectangle
+void Display_DrawRectangle(uint8_t x, uint8_t y, uint8_t width, uint8_t height) {
+    // Draw top and bottom lines
+    Display_DrawLine(x, y, x + width, y);
+    Display_DrawLine(x, y + height, x + width, y + height);
+    
+    // Draw left and right lines
+    Display_DrawLine(x, y, x, y + height);
+    Display_DrawLine(x + width, y, x + width, y + height);
+}
+
+int main(void) {
+    // HAL initialization
+    HAL_Init();
+    
+    // System clock configuration
+    SystemClock_Config();
+    
+    // Initialize display
+    Display_Init();
+    
+    // Display some content
+    Display_WriteString(10, 0, "Hello, STM32!");
+    Display_DrawRectangle(5, 10, 230, 40);
+    
+    while(1) {
+        // Main loop
+    }
+}
