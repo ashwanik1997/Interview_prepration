@@ -1,0 +1,105 @@
+/* Linker script for STM32F429ZI with Micrium OS v3 and GCC 10.3.1 */
+
+ENTRY(Reset_Handler)
+
+/* Memory regions */
+MEMORY
+{
+  FLASH   (rx)  : ORIGIN = 0x08000000, LENGTH = 2048K   /* 2MB Flash */
+  RAM     (xrw) : ORIGIN = 0x20000000, LENGTH = 256K    /* SRAM1 + SRAM2 */
+  CCMRAM  (xrw) : ORIGIN = 0x10000000, LENGTH = 64K     /* CCMRAM (fast stack) */
+}
+
+/* Stack and heap sizes */
+_Min_Heap_Size  = 0x200;  /* 512 B heap */
+_Min_Stack_Size = 0x800;  /* 2 KB stack */
+
+/* Symbols for stack/heap */
+_estack = ORIGIN(RAM) + LENGTH(RAM);   /* Top of RAM */
+PROVIDE(_stack_top = _estack);
+
+SECTIONS
+{
+  /* Vector table */
+  .isr_vector :
+  {
+    KEEP(*(.isr_vector))
+  } > FLASH
+
+  /* Code and read-only data */
+  .text :
+  {
+    . = ALIGN(4);
+    *(.text)           /* Code */
+    *(.text*)          
+    *(.rodata)         /* Read-only data */
+    *(.rodata*)
+    *(.glue_7)
+    *(.glue_7t)
+    KEEP(*(.init))
+    KEEP(*(.fini))
+    . = ALIGN(4);
+  } > FLASH
+
+  /* Exception handling and metadata */
+  .ARM.extab : { *(.ARM.extab* .gnu.linkonce.armextab.*) } > FLASH
+  .ARM.exidx : { *(.ARM.exidx* .gnu.linkonce.armexidx.*) } > FLASH
+  .ARM.attributes 0 : { *(.ARM.attributes) }
+
+  .preinit_array : { KEEP(*(.preinit_array)) } > FLASH
+  .init_array    : { KEEP(*(SORT(.init_array.*))) KEEP(*(.init_array)) } > FLASH
+  .fini_array    : { KEEP(*(SORT(.fini_array.*))) KEEP(*(.fini_array)) } > FLASH
+
+  /* Initialized data section */
+  .data :
+  {
+    . = ALIGN(4);
+    _sdata = .;
+    *(.data)
+    *(.data*)
+    . = ALIGN(4);
+    _edata = .;
+  } > RAM AT > FLASH
+
+  /* Uninitialized data */
+  .bss :
+  {
+    . = ALIGN(4);
+    _sbss = .;
+    __bss_start__ = _sbss;
+    *(.bss)
+    *(.bss*)
+    *(COMMON)
+    . = ALIGN(4);
+    _ebss = .;
+    __bss_end__ = _ebss;
+  } > RAM
+
+  /* Heap and Main Stack Region */
+  .heap_stack (COPY) :
+  {
+    . = ALIGN(8);
+    _end = .;
+    PROVIDE(end = .);
+    
+    _heap_start = .;
+    . = . + _Min_Heap_Size;
+    _heap_end = .;
+    PROVIDE(_heap_limit = _heap_end);
+
+    _stack = .;
+    . = . + _Min_Stack_Size;
+    PROVIDE(_stack_top = .);
+  } > RAM
+
+  /* CCMRAM section (for fast task stacks) */
+  .ccmram (NOLOAD) :
+  {
+    . = ALIGN(4);
+    _sccmram = .;
+    *(.ccmram)
+    *(.ccmram*)
+    . = ALIGN(4);
+    _eccmram = .;
+  } > CCMRAM
+}
