@@ -1,0 +1,155 @@
+extern const uint8_t audioSamples[];
+extern const uint16_t audioSamplesSize;
+
+typedef enum {
+    QuietBurstMsb,
+    QuietBurstLsb,
+    AlarmBurstMsb,
+    AlarmBurstLsb,
+    AlarmPulseSpacingMsb,
+    AlarmPulseSpacingLsb,
+    AlarmInterburstIntervalMsb,
+    AlarmInterburstIntervalLsb
+} AudioState;
+
+volatile AudioState audioState = QuietBurstMsb;
+volatile uint8_t alarmBurst = 0;
+volatile uint16_t audioFileByteCount = 0;
+volatile uint32_t audioQuietByteCount = 0;
+volatile bool audioOn = false;
+volatile bool audioTestPending = true;
+
+
+
+TIM_HandleTypeDef htim9;
+
+void MX_TIM9_Init(void)
+{
+    __HAL_RCC_TIM9_CLK_ENABLE();
+
+    htim9.Instance = TIM9;
+    htim9.Init.Prescaler = 83;     // 84 MHz / (83+1) = 1 MHz
+    htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim9.Init.Period = 24;        // 1 MHz / 25 = 40 kHz
+    htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    HAL_TIM_Base_Init(&htim9);
+
+    HAL_NVIC_SetPriority(TIM1_BRK_TIM9_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(TIM1_BRK_TIM9_IRQn);
+}
+
+void TIM1_BRK_TIM9_IRQHandler(void)
+{
+    HAL_TIM_IRQHandler(&htim9);
+}
+
+#define alarmNumBursts 5
+
+void audiowrite(bool enable) {
+    audioOn = enable;
+}
+
+void TIM2_IRQHandler(void)
+{
+    HAL_TIM_IRQHandler(&htim2);
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    static uint8_t lsb;
+
+    if (htim->Instance == TIM2) {
+        switch (audioState) {
+            case QuietBurstMsb:
+                __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, audioSamples[0]);
+                audioState = QuietBurstLsb;
+                break;
+
+            case QuietBurstLsb:
+                __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, audioSamples[1]);
+                if (audioOn || audioTestPending) {
+                    alarmBurst = 0;
+                    audioFileByteCount = 0;
+                    audioState = AlarmBurstMsb;
+                } else {
+                    audioState = QuietBurstMsb;
+                }
+                break;
+
+            case AlarmBurstMsb:
+                __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, audioSamples[audioFileByteCount + 4]);
+                lsb = audioSamples[audioFileByteCount++];
+                audioState = AlarmBurstLsb;
+                break;
+
+            case AlarmBurstLsb:
+                __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, lsb);
+                if (audioFileByteCount >= audioSamplesSize) {
+                    audioQuietByteCount = 0;
+                    if (audioTestPending) {
+                        audioTestPending = false;
+                        audioState = QuietBurstMsb;
+                    } else {
+                        audioState = (++alarmBurst < alarmNumBursts) ? AlarmPulseSpacingMsb : AlarmInterburstIntervalMsb;
+                    }
+                } else {
+                    audioState = AlarmBurstMsb;
+                }
+                break;
+
+            case AlarmPulseSpacingMsb:
+                __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, audioSamples[0]);
+                audioQuietByteCount++;
+                audioState = AlarmPulseSpacingLsb;
+                break;
+
+            case AlarmPulseSpacingLsb:
+                __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, audioSamples[1]);
+                if (++audioQuietByteCount >= 5120) {
+                    audioFileByteCount = 0;
+                    audioState = AlarmBurstMsb;
+                } else {
+                    audioState = AlarmPulseSpacingMsb;
+                }
+                break;
+
+            case AlarmInterburstIntervalMsb:
+                __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, audioSamples[0]);
+                audioQuietByteCount++;
+                audioState = AlarmInterburstIntervalLsb;
+                break;
+
+            case AlarmInterburstIntervalLsb:
+                __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, audioSamples[1]);
+                if (++audioQuietByteCount >= 153520) {
+                    if (audioOn) {
+                        alarmBurst = 0;
+                        audioFileByteCount = 0;
+                        audioState = AlarmBurstMsb;
+                    } else {
+                        audioState = QuietBurstMsb;
+                    }
+                } else {
+                    audioState = AlarmInterburstIntervalMsb;
+                }
+                break;
+        }
+    }
+}
+
+
+int main(void)
+{
+    HAL_Init();
+    SystemClock_Config(); // Make sure HCLK = 84 MHz
+    MX_TIM3_Init();
+    MX_TIM2_Init();
+
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
+    HAL_TIM_Base_Start_IT(&htim2);  // 40 kHz audio sample rate
+
+    while (1) {
+        // Your app logic here
+    }
+}
