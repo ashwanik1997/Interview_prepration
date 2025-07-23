@@ -1,0 +1,155 @@
+#ifndef ALARM_AUDIO_H
+#define ALARM_AUDIO_H
+
+#include "stm32f4xx_hal.h"
+#include "os.h"
+
+typedef enum {
+    ALARM_PRIORITY_NONE = 0,
+    ALARM_PRIORITY_LOW,
+    ALARM_PRIORITY_MEDIUM,
+    ALARM_PRIORITY_HIGH
+} AlarmPriority_t;
+
+void Alarm_Init(TIM_HandleTypeDef *htim);
+void Alarm_Start(AlarmPriority_t priority);
+void Alarm_Stop(void);
+void BuzzerTask(void *p_arg);
+
+#endif // ALARM_AUDIO_H
+
+#include "alarm_audio.h"
+
+#define ALARM_TIMER_CHANNEL TIM_CHANNEL_3
+
+static TIM_HandleTypeDef *alarm_htim = NULL;
+static AlarmPriority_t current_priority = ALARM_PRIORITY_NONE;
+
+typedef enum {
+    STATE_IDLE,
+    STATE_PLAYING,
+    STATE_SPACING,
+    STATE_INTER_BURST
+} AlarmState_t;
+
+static AlarmState_t state = STATE_IDLE;
+
+static uint8_t pulseIndex = 0;
+
+static const uint16_t low_harmonics[]    = { 700 };
+static const uint16_t medium_harmonics[] = { 900, 1800, 2700 };
+static const uint16_t high_harmonics[]   = { 3500 };
+
+static OS_TMR toneTmr;
+static OS_TMR spaceTmr;
+static OS_TMR interBurstTmr;
+
+static OS_SEM buzzerSem;
+
+static void set_pwm_frequency(uint16_t freq)
+{
+    uint32_t timer_clk = HAL_RCC_GetPCLK1Freq() * 2;
+    uint32_t period = (timer_clk / freq) - 1;
+    alarm_htim->Instance->PSC = 0;
+    alarm_htim->Instance->ARR = period;
+    alarm_htim->Instance->CCR3 = period / 2;
+    HAL_TIM_PWM_Start(alarm_htim, ALARM_TIMER_CHANNEL);
+}
+
+static void stop_pwm(void)
+{
+    HAL_TIM_PWM_Stop(alarm_htim, ALARM_TIMER_CHANNEL);
+}
+
+void Alarm_Init(TIM_HandleTypeDef *htim)
+{
+    alarm_htim = htim;
+    OSSemCreate(&buzzerSem, "Buzzer Sem", 0, NULL);
+
+    OSTmrCreate(&toneTmr, "Tone Timer", 0, 0, NULL, NULL, NULL, NULL);
+    OSTmrCreate(&spaceTmr, "Space Timer", 0, 0, NULL, NULL, NULL, NULL);
+    OSTmrCreate(&interBurstTmr, "Burst Timer", 0, 0, NULL, NULL, NULL, NULL);
+}
+
+void Alarm_Start(AlarmPriority_t priority)
+{
+    if (current_priority == ALARM_PRIORITY_NONE) {
+        current_priority = priority;
+        OSSemPost(&buzzerSem, OS_OPT_POST_1, NULL); // Trigger buzzer task
+    }
+}
+
+void Alarm_Stop(void)
+{
+    stop_pwm();
+    current_priority = ALARM_PRIORITY_NONE;
+    state = STATE_IDLE;
+    pulseIndex = 0;
+
+    OSTmrStop(&toneTmr, OS_OPT_TMR_NONE, NULL); 
+    OSTmrStop(&spaceTmr, OS_OPT_TMR_NONE, NULL); 
+    OSTmrStop(&interBurstTmr, OS_OPT_TMR_NONE, NULL); 
+}
+
+void BuzzerTask(void *p_arg)
+{
+    (void)p_arg;
+    OS_ERR err;
+
+    while (1) {
+        // Wait for a start signal
+        OSSemPend(&buzzerSem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
+
+        while (current_priority != ALARM_PRIORITY_NONE) {
+            switch (state)
+            {
+            case STATE_IDLE:
+                pulseIndex = 0;
+                state = STATE_PLAYING;
+                break;
+
+            case STATE_PLAYING:
+                if (current_priority == ALARM_PRIORITY_LOW) {
+                    set_pwm_frequency(low_harmonics[0]);
+                    OSTmrStart(&toneTmr, 50, OS_OPT_TMR_ONE_SHOT, (OS_TMR_CALLBACK_PTR)Alarm_Stop, NULL, &err);
+                    state = STATE_IDLE; // One-shot tone
+
+                } else if (current_priority == ALARM_PRIORITY_MEDIUM) {
+                    set_pwm_frequency(medium_harmonics[pulseIndex]);
+                    OSTmrStart(&toneTmr, 25, OS_OPT_TMR_ONE_SHOT, (OS_TMR_CALLBACK_PTR)stop_pwm, NULL, &err);
+                    state = STATE_SPACING;
+
+                } else if (current_priority == ALARM_PRIORITY_HIGH) {
+                    set_pwm_frequency(high_harmonics[0]);
+                    OSTmrStart(&toneTmr, 10, OS_OPT_TMR_ONE_SHOT, (OS_TMR_CALLBACK_PTR)stop_pwm, NULL, &err);
+                    state = STATE_SPACING;
+                }
+                break;
+
+            case STATE_SPACING:
+                if (current_priority == ALARM_PRIORITY_MEDIUM) {
+                    OSTmrStart(&spaceTmr, 25, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
+                    pulseIndex++;
+                    if (pulseIndex >= sizeof(medium_harmonics)/sizeof(uint16_t)) {
+                        pulseIndex = 0;
+                        state = STATE_INTER_BURST;
+                    } else {
+                        state = STATE_PLAYING;
+                    }
+
+                } else if (current_priority == ALARM_PRIORITY_HIGH) {
+                    OSTmrStart(&spaceTmr, 10, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
+                    state = STATE_PLAYING;
+                }
+                break;
+
+            case STATE_INTER_BURST:
+                OSTmrStart(&interBurstTmr, 150, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
+                state = STATE_PLAYING;
+                break;
+            }
+
+            OSTimeDlyHMSM(0, 0, 0, 10, OS_OPT_TIME_DLY, &err);
+        }
+    }
+}
