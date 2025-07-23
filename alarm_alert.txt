@@ -1,0 +1,168 @@
+// alarm_audio.h #ifndef ALARM_AUDIO_H #define ALARM_AUDIO_H
+
+#include "stm32f4xx_hal.h" #include "os.h"
+
+// Alarm priority levels typedef enum { ALARM_PRIORITY_NONE = 0, ALARM_PRIORITY_LOW, ALARM_PRIORITY_MEDIUM, ALARM_PRIORITY_HIGH } AlarmPriority_t;
+
+// Public interface void Alarm_Init(TIM_HandleTypeDef *htim); void Alarm_Start(AlarmPriority_t priority); void Alarm_Stop(void); void Alarm_Task(void *p_arg);
+
+#endif // ALARM_AUDIO_H
+
+#include "alarm_audio.h"
+
+#define ALARM_TIMER_CHANNEL TIM_CHANNEL_3
+
+static TIM_HandleTypeDef *alarm_htim = NULL;
+
+static AlarmPriority_t current_priority = ALARM_PRIORITY_NONE;
+static uint8_t pulseIndex = 0;
+static uint32_t lastTick = 0;
+
+static const uint16_t medium_harmonics[] = { 900, 1800, 2700 };
+static const uint16_t high_harmonics[]   = { 3500 };
+static const uint16_t low_harmonics[]    = { 700 };
+
+static bool alarm_active = false;
+static bool uart_triggered = false;
+
+typedef enum {
+    STATE_IDLE,
+    STATE_PLAYING,
+    STATE_SPACING,
+    STATE_INTER_BURST
+} AlarmState_t;
+
+static AlarmState_t state = STATE_IDLE;
+
+void Alarm_Init(TIM_HandleTypeDef *htim)
+{
+    alarm_htim = htim;
+}
+
+void Alarm_Start(AlarmPriority_t priority)
+{
+    if (current_priority == ALARM_PRIORITY_NONE) {
+        current_priority = priority;
+        uart_triggered = true;
+    }
+}
+
+void Alarm_Stop(void)
+{
+    HAL_TIM_PWM_Stop(alarm_htim, ALARM_TIMER_CHANNEL);
+    current_priority = ALARM_PRIORITY_NONE;
+    state = STATE_IDLE;
+    alarm_active = false;
+    pulseIndex = 0;
+}
+
+static void set_pwm_frequency(uint16_t freq)
+{
+    uint32_t timer_clk = HAL_RCC_GetPCLK1Freq() * 2; // APB1 timers x2
+    uint32_t period = (timer_clk / freq) - 1;
+
+    alarm_htim->Instance->PSC = 0;
+    alarm_htim->Instance->ARR = period;
+    alarm_htim->Instance->CCR3 = period / 2; // 50% duty
+    HAL_TIM_PWM_Start(alarm_htim, ALARM_TIMER_CHANNEL);
+}
+
+void Alarm_Task(void *p_arg)
+{
+    (void)p_arg;
+    uint32_t now = HAL_GetTick();
+
+    if (current_priority == ALARM_PRIORITY_NONE) {
+        return;
+    }
+
+    if (!uart_triggered) {
+        return;
+    }
+
+    switch (state)
+    {
+    case STATE_IDLE:
+        pulseIndex = 0;
+        alarm_active = true;
+        state = STATE_PLAYING;
+        lastTick = now;
+        break;
+
+    case STATE_PLAYING:
+        if (current_priority == ALARM_PRIORITY_LOW) {
+            set_pwm_frequency(low_harmonics[0]);
+            if (now - lastTick >= 500) { // 500ms tone
+                HAL_TIM_PWM_Stop(alarm_htim, ALARM_TIMER_CHANNEL);
+                lastTick = now;
+                state = STATE_SPACING;
+            }
+
+        } else if (current_priority == ALARM_PRIORITY_MEDIUM) {
+            set_pwm_frequency(medium_harmonics[pulseIndex]);
+            if (now - lastTick >= 250) { // 250ms tone burst
+                HAL_TIM_PWM_Stop(alarm_htim, ALARM_TIMER_CHANNEL);
+                lastTick = now;
+                state = STATE_SPACING;
+            }
+
+        } else if (current_priority == ALARM_PRIORITY_HIGH) {
+            set_pwm_frequency(high_harmonics[0]);
+            if (now - lastTick >= 100) { // 100ms tone burst
+                HAL_TIM_PWM_Stop(alarm_htim, ALARM_TIMER_CHANNEL);
+                lastTick = now;
+                state = STATE_SPACING;
+            }
+        }
+        break;
+
+    case STATE_SPACING:
+        if (current_priority == ALARM_PRIORITY_LOW) {
+            if (now - lastTick >= 1500) { // 1.5s off
+                lastTick = now;
+                state = STATE_IDLE;
+                uart_triggered = false;
+                Alarm_Stop();
+            }
+
+        } else if (current_priority == ALARM_PRIORITY_MEDIUM) {
+            if (now - lastTick >= 250) { // 250ms spacing
+                pulseIndex++;
+                if (pulseIndex >= (sizeof(medium_harmonics)/sizeof(uint16_t))) {
+                    pulseIndex = 0;
+                    state = STATE_INTER_BURST;
+                    lastTick = now;
+                } else {
+                    state = STATE_PLAYING;
+                    lastTick = now;
+                }
+            }
+
+        } else if (current_priority == ALARM_PRIORITY_HIGH) {
+            if (now - lastTick >= 100) { // 100ms spacing
+                state = STATE_PLAYING;
+                lastTick = now;
+            }
+        }
+        break;
+
+    case STATE_INTER_BURST:
+        if (now - lastTick >= 1500) { // 1.5s off between medium alarm burst
+            state = STATE_PLAYING;
+            pulseIndex = 0;
+            lastTick = now;
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+void AlarmTask(void *p_arg)
+{
+    (void)p_arg;
+    while (1) {
+        Alarm_Task(NULL);
+        OSTimeDlyHMSM(0, 0, 0, 10); // run every 10ms
+    }
+}
