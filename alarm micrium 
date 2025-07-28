@@ -63,42 +63,79 @@ static void stop_pwm(void)
 
 void Alarm_Init(TIM_HandleTypeDef *htim)
 {
+    OS_ERR err;
+    
     alarm_htim = htim;
-    OSSemCreate(&buzzerSem, "Buzzer Sem", 0, NULL);
-
-    OSTmrCreate(&toneTmr, "Tone Timer", 0, 0, NULL, NULL, NULL, NULL);
-    OSTmrCreate(&spaceTmr, "Space Timer", 0, 0, NULL, NULL, NULL, NULL);
-    OSTmrCreate(&interBurstTmr, "Burst Timer", 0, 0, NULL, NULL, NULL, NULL);
+    OSSemCreate(&buzzerSem, "Buzzer Sem", 0, &err);
+    
+    // Corrected timer creation with proper callback function types
+    OSTmrCreate(&toneTmr, 
+                "Tone Timer", 
+                0, 
+                0, 
+                OS_OPT_TMR_ONE_SHOT,
+                (OS_TMR_CALLBACK_PTR)stop_pwm,
+                NULL,
+                &err);
+                
+    OSTmrCreate(&spaceTmr, 
+                "Space Timer", 
+                0, 
+                0, 
+                OS_OPT_TMR_ONE_SHOT,
+                NULL,
+                NULL,
+                &err);
+                
+    OSTmrCreate(&interBurstTmr, 
+                "Burst Timer", 
+                0, 
+                0, 
+                OS_OPT_TMR_ONE_SHOT,
+                NULL,
+                NULL,
+                &err);
 }
 
 void Alarm_Start(AlarmPriority_t priority)
 {
+    OS_ERR err;
+    
     if (current_priority == ALARM_PRIORITY_NONE) {
         current_priority = priority;
-        OSSemPost(&buzzerSem, OS_OPT_POST_1, NULL); // Trigger buzzer task
+        OSSemPost(&buzzerSem, OS_OPT_POST_1, &err); // Trigger buzzer task
     }
 }
 
 void Alarm_Stop(void)
 {
+    OS_ERR err;
+    
     stop_pwm();
     current_priority = ALARM_PRIORITY_NONE;
     state = STATE_IDLE;
     pulseIndex = 0;
 
-    OSTmrStop(&toneTmr, OS_OPT_TMR_NONE, NULL); 
-    OSTmrStop(&spaceTmr, OS_OPT_TMR_NONE, NULL); 
-    OSTmrStop(&interBurstTmr, OS_OPT_TMR_NONE, NULL); 
+    OSTmrStop(&toneTmr, OS_OPT_TMR_NONE, &err); 
+    OSTmrStop(&spaceTmr, OS_OPT_TMR_NONE, &err); 
+    OSTmrStop(&interBurstTmr, OS_OPT_TMR_NONE, &err); 
+}
+
+static void ToneTimerCallback(OS_TMR *p_tmr, void *p_arg)
+{
+    (void)p_tmr;
+    (void)p_arg;
+    stop_pwm();
 }
 
 void BuzzerTask(void *p_arg)
 {
-    (void)p_arg;
     OS_ERR err;
+    (void)p_arg;
 
     while (1) {
         // Wait for a start signal
-        OSSemPend(&buzzerSem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
+        OSSemPend(&buzzerSem, 0, OS_OPT_PEND_BLOCKING, 0, &err);
 
         while (current_priority != ALARM_PRIORITY_NONE) {
             switch (state)
@@ -111,24 +148,44 @@ void BuzzerTask(void *p_arg)
             case STATE_PLAYING:
                 if (current_priority == ALARM_PRIORITY_LOW) {
                     set_pwm_frequency(low_harmonics[0]);
-                    OSTmrStart(&toneTmr, 50, OS_OPT_TMR_ONE_SHOT, (OS_TMR_CALLBACK_PTR)Alarm_Stop, NULL, &err);
+                    OSTmrStart(&toneTmr, 
+                               50, 
+                               OS_OPT_TMR_ONE_SHOT, 
+                               (OS_TMR_CALLBACK_PTR)Alarm_Stop, 
+                               NULL, 
+                               &err);
                     state = STATE_IDLE; // One-shot tone
 
                 } else if (current_priority == ALARM_PRIORITY_MEDIUM) {
                     set_pwm_frequency(medium_harmonics[pulseIndex]);
-                    OSTmrStart(&toneTmr, 25, OS_OPT_TMR_ONE_SHOT, (OS_TMR_CALLBACK_PTR)stop_pwm, NULL, &err);
+                    OSTmrStart(&toneTmr, 
+                               25, 
+                               OS_OPT_TMR_ONE_SHOT, 
+                               (OS_TMR_CALLBACK_PTR)ToneTimerCallback, 
+                               NULL, 
+                               &err);
                     state = STATE_SPACING;
 
                 } else if (current_priority == ALARM_PRIORITY_HIGH) {
                     set_pwm_frequency(high_harmonics[0]);
-                    OSTmrStart(&toneTmr, 10, OS_OPT_TMR_ONE_SHOT, (OS_TMR_CALLBACK_PTR)stop_pwm, NULL, &err);
+                    OSTmrStart(&toneTmr, 
+                               10, 
+                               OS_OPT_TMR_ONE_SHOT, 
+                               (OS_TMR_CALLBACK_PTR)ToneTimerCallback, 
+                               NULL, 
+                               &err);
                     state = STATE_SPACING;
                 }
                 break;
 
             case STATE_SPACING:
                 if (current_priority == ALARM_PRIORITY_MEDIUM) {
-                    OSTmrStart(&spaceTmr, 25, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
+                    OSTmrStart(&spaceTmr, 
+                               25, 
+                               OS_OPT_TMR_ONE_SHOT, 
+                               NULL, 
+                               NULL, 
+                               &err);
                     pulseIndex++;
                     if (pulseIndex >= sizeof(medium_harmonics)/sizeof(uint16_t)) {
                         pulseIndex = 0;
@@ -138,18 +195,28 @@ void BuzzerTask(void *p_arg)
                     }
 
                 } else if (current_priority == ALARM_PRIORITY_HIGH) {
-                    OSTmrStart(&spaceTmr, 10, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
+                    OSTmrStart(&spaceTmr, 
+                               10, 
+                               OS_OPT_TMR_ONE_SHOT, 
+                               NULL, 
+                               NULL, 
+                               &err);
                     state = STATE_PLAYING;
                 }
                 break;
 
             case STATE_INTER_BURST:
-                OSTmrStart(&interBurstTmr, 150, OS_OPT_TMR_ONE_SHOT, NULL, NULL, &err);
+                OSTmrStart(&interBurstTmr, 
+                           150, 
+                           OS_OPT_TMR_ONE_SHOT, 
+                           NULL, 
+                           NULL, 
+                           &err);
                 state = STATE_PLAYING;
                 break;
             }
 
-            OSTimeDlyHMSM(0, 0, 0, 10, OS_OPT_TIME_DLY, &err);
+            OSTimeDlyHMSM(0, 0, 0, 10, OS_OPT_TIME_HMSM_STRICT, &err);
         }
     }
 }
