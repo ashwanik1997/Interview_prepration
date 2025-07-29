@@ -1,0 +1,174 @@
+#include "alarm_audio.h"
+#include <string.h>
+
+/* Constants */
+#define MEDIUM_PULSE_COUNT        3
+#define MEDIUM_PULSE_DURATION    200   // ms
+#define MEDIUM_PULSE_SPACING     200   // ms
+#define MEDIUM_INTER_BURST_DELAY 3910  // ms
+#define RISE_FALL_TIME           32    // ms
+#define SAMPLE_RATE             20000  // Hz
+
+/* Static Variables */
+static TIM_HandleTypeDef *alarm_htim = NULL;
+static AlarmPriority_t current_priority = ALARM_PRIORITY_NONE;
+
+typedef enum {
+    STATE_IDLE,
+    STATE_PLAYING,
+    STATE_PULSE_ACTIVE,
+    STATE_SPACING,
+    STATE_INTER_BURST
+} AlarmState_t;
+
+static AlarmState_t state = STATE_IDLE;
+static uint8_t pulseIndex = 0;
+static uint8_t burstCount = 0;
+
+static const uint16_t medium_harmonics[] = {900, 1800, 2700, 3600};
+
+static OS_TMR pulseTmr;
+static OS_TMR spaceTmr;
+static OS_TMR burstTmr;
+static OS_SEM buzzerSem;
+
+static CPU_STK buzzer_task_stack[BUZZER_TASK_STACK_SIZE];
+static OS_TCB buzzer_task_tcb;
+
+/* Private Functions */
+static void set_pwm_with_ramp(uint16_t freq) {
+    uint32_t timer_clk = HAL_RCC_GetPCLK1Freq() * 2;
+    uint32_t period = (timer_clk / freq) - 1;
+    
+    // Configure timer
+    alarm_htim->Instance->PSC = 0;
+    alarm_htim->Instance->ARR = period;
+    
+    // Ramp up over 32ms (640 steps at 20kHz)
+    for (uint16_t i = 0; i < period; i += period/640) {
+        alarm_htim->Instance->CCR3 = i;
+        OSTimeDly(OS_MS_TO_TICKS(0.05), OS_OPT_TIME_DLY, &err);
+    }
+    
+    // Set final duty
+    alarm_htim->Instance->CCR3 = period / 2;
+    HAL_TIM_PWM_Start(alarm_htim, ALARM_TIMER_CHANNEL);
+}
+
+static void stop_pwm_with_ramp(void) {
+    uint32_t current_duty = alarm_htim->Instance->CCR3;
+    uint32_t period = alarm_htim->Instance->ARR;
+    
+    // Ramp down over 32ms (640 steps at 20kHz)
+    for (uint32_t i = current_duty; i > 0; i -= period/640) {
+        alarm_htim->Instance->CCR3 = i;
+        OSTimeDly(OS_MS_TO_TICKS(0.05), OS_OPT_TIME_DLY, &err);
+    }
+    
+    HAL_TIM_PWM_Stop(alarm_htim, ALARM_TIMER_CHANNEL);
+}
+
+static void BuzzerTask(void *p_arg) {
+    OS_ERR err;
+    (void)p_arg;
+
+    while (1) {
+        OSSemPend(&buzzerSem, 0, OS_OPT_PEND_BLOCKING, 0, &err);
+
+        while (current_priority == ALARM_PRIORITY_MEDIUM) {
+            switch (state) {
+                case STATE_IDLE:
+                    pulseIndex = 0;
+                    burstCount = 0;
+                    state = STATE_PLAYING;
+                    break;
+
+                case STATE_PLAYING:
+                    set_pwm_with_ramp(medium_harmonics[pulseIndex]);
+                    pulseTmr.OSTmrMatch = OSTimeGet(&err) + OS_MS_TO_TICKS(MEDIUM_PULSE_DURATION);
+                    OSTmrStart(&pulseTmr, &err);
+                    state = STATE_PULSE_ACTIVE;
+                    break;
+
+                case STATE_PULSE_ACTIVE:
+                    if (OSTmrGetRemain(&pulseTmr, &err) == 0) {
+                        stop_pwm_with_ramp();
+                        burstCount++;
+                        
+                        if (burstCount >= MEDIUM_PULSE_COUNT) {
+                            burstCount = 0;
+                            pulseIndex = (pulseIndex + 1) % (sizeof(medium_harmonics)/sizeof(uint16_t));
+                            burstTmr.OSTmrMatch = OSTimeGet(&err) + OS_MS_TO_TICKS(MEDIUM_INTER_BURST_DELAY);
+                            OSTmrStart(&burstTmr, &err);
+                            state = STATE_INTER_BURST;
+                        } else {
+                            spaceTmr.OSTmrMatch = OSTimeGet(&err) + OS_MS_TO_TICKS(MEDIUM_PULSE_SPACING);
+                            OSTmrStart(&spaceTmr, &err);
+                            state = STATE_SPACING;
+                        }
+                    }
+                    break;
+
+                case STATE_SPACING:
+                    if (OSTmrGetRemain(&spaceTmr, &err) == 0) {
+                        state = STATE_PLAYING;
+                    }
+                    break;
+
+                case STATE_INTER_BURST:
+                    if (OSTmrGetRemain(&burstTmr, &err) == 0) {
+                        state = STATE_PLAYING;
+                    }
+                    break;
+            }
+            OSTimeDly(1, OS_OPT_TIME_DLY, &err);
+        }
+    }
+}
+
+void AudioSelfTest(void) {
+    OS_ERR err;
+    set_pwm_with_ramp(900); // First harmonic
+    OSTimeDly(OS_MS_TO_TICKS(MEDIUM_PULSE_DURATION), OS_OPT_TIME_DLY, &err);
+    stop_pwm_with_ramp();
+}
+
+void Alarm_Init(TIM_HandleTypeDef *htim) {
+    OS_ERR err;
+    
+    alarm_htim = htim;
+    OSSemCreate(&buzzerSem, "Buzzer Sem", 0, &err);
+    
+    // Create timers
+    OSTmrCreate(&pulseTmr, "Pulse Timer", 0, 0, OS_TMR_OPT_ONE_SHOT, NULL, NULL, &err);
+    OSTmrCreate(&spaceTmr, "Space Timer", 0, 0, OS_TMR_OPT_ONE_SHOT, NULL, NULL, &err);
+    OSTmrCreate(&burstTmr, "Burst Timer", 0, 0, OS_TMR_OPT_ONE_SHOT, NULL, NULL, &err);
+    
+    // Create task
+    OSTaskCreate(&buzzer_task_tcb, "Buzzer Task", BuzzerTask, NULL,
+                BUZZER_TASK_PRIORITY, &buzzer_task_stack[0],
+                BUZZER_TASK_STACK_SIZE/10, BUZZER_TASK_STACK_SIZE,
+                0, 0, NULL, OS_OPT_TASK_STK_CHK|OS_OPT_TASK_STK_CLR, &err);
+    
+    // Execute self-test
+    AudioSelfTest();
+}
+
+void Alarm_Start(AlarmPriority_t priority) {
+    OS_ERR err;
+    if (priority == ALARM_PRIORITY_MEDIUM) {
+        current_priority = priority;
+        OSSemPost(&buzzerSem, OS_OPT_POST_1, &err);
+    }
+}
+
+void Alarm_Stop(void) {
+    OS_ERR err;
+    stop_pwm_with_ramp();
+    current_priority = ALARM_PRIORITY_NONE;
+    state = STATE_IDLE;
+    
+    OSTmrStop(&pulseTmr, OS_OPT_TMR_NONE, NULL, &err);
+    OSTmrStop(&spaceTmr, OS_OPT_TMR_NONE, NULL, &err);
+    OSTmrStop(&burstTmr, OS_OPT_TMR_NONE, NULL, &err);
+}
