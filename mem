@@ -1,0 +1,348 @@
+#ifndef __KEYPAD_UCOS_H__
+#define __KEYPAD_UCOS_H__
+
+#include "os.h"
+#include "cpu.h"
+#include "stm32f4xx_hal.h"
+
+// Configuration Constants
+#define KEYPAD_QUEUE_SIZE        10u    ///< Maximum key events in queue
+#define KEYPAD_TASK_PRIO         10u    ///< Keypad task priority (adjust as needed)
+#define KEYPAD_TASK_STK_SIZE    256u    ///< Keypad task stack size (words)
+
+/// Keypad key identifiers
+typedef enum {
+    KEY_NONE = 0,   ///< No key pressed
+    KEY_M1,         ///< M1 key (Row 1, Column 1)
+    KEY_M2,         ///< M2 key (Row 1, Column 2)
+    KEY_M3,         ///< M3 key (Row 1, Column 3)
+    KEY_M4,         ///< M4 key (Row 1, Column 4)
+    KEY_C1,         ///< C1 key (Row 2, Column 1)
+    KEY_C2,         ///< C2 key (Row 2, Column 2)
+    KEY_C3,         ///< C3 key (Row 2, Column 3)
+    KEY_C4,         ///< C4 key (Row 2, Column 4)
+    KEY_HLP,        ///< HELP key (Row 3, Column 1)
+    KEY_ENT         ///< ENTER key (Row 3, Column 2)
+} KeypadKey_t;
+
+/// Keypad event structure
+typedef struct {
+    KeypadKey_t key;     ///< Key identifier
+    CPU_TS      ts;      ///< Timestamp when event occurred
+    bool        pressed; ///< true=press, false=release
+} KeypadEvent_t;
+
+// External Task Control Block references
+extern OS_TCB   KeypadTCB;              ///< Keypad task control block
+extern CPU_STK  KeypadStk[KEYPAD_TASK_STK_SIZE]; ///< Keypad task stack
+
+/**
+ * @brief Initialize keypad hardware and OS resources
+ * @param p_err Pointer to error code
+ */
+void Keypad_Init(OS_ERR *p_err);
+
+/**
+ * @brief Start keypad scanning task
+ * @param p_err Pointer to error code
+ */
+void Keypad_Start(OS_ERR *p_err);
+
+/**
+ * @brief Get a pressed key (blocks until key press or timeout)
+ * @param timeout Timeout in ticks (0=no wait, OS_OPT_PEND_BLOCKING=wait forever)
+ * @param p_err Pointer to error code
+ * @return KeypadKey_t Pressed key or KEY_NONE if timeout
+ */
+KeypadKey_t Keypad_GetKey(OS_TICK timeout, OS_ERR *p_err);
+
+/**
+ * @brief Get complete key event (press/release)
+ * @param p_event Pointer to store event data
+ * @param timeout Timeout in ticks
+ * @param p_err Pointer to error code
+ * @return true if event available, false if timeout
+ */
+bool Keypad_GetEvent(KeypadEvent_t *p_event, OS_TICK timeout, OS_ERR *p_err);
+
+/**
+ * @brief Interrupt service routine for keypad
+ * @param GPIO_Pin Pin that triggered interrupt
+ */
+void Keypad_ISR_Handler(uint16_t GPIO_Pin);
+
+#endif /* __KEYPAD_UCOS_H__ */
+
+#include "keypad_ucos.h"
+#include "stm32f4xx_it.h"
+
+/* Static uC/OS-III objects */
+static OS_Q        KeypadQ;            // Key event queue
+static OS_MUTEX    KeypadMutex;        // Keypad scan mutex
+static OS_FLAG_GRP KeypadFlags;        // Key event flags
+static bool        KeypadInitialized = false;
+
+/* Hardware configuration - adjust for your specific board */
+#define COL_PORT GPIOD                 // Column port
+#define COL1_PIN GPIO_PIN_0            // Column 1 pin
+#define COL2_PIN GPIO_PIN_1            // Column 2 pin
+#define COL3_PIN GPIO_PIN_2            // Column 3 pin
+#define COL4_PIN GPIO_PIN_3            // Column 4 pin
+
+#define ROW_PORT GPIOG                 // Row port
+#define ROW1_PIN GPIO_PIN_0            // Row 1 pin
+#define ROW2_PIN GPIO_PIN_1            // Row 2 pin
+#define ROW3_PIN GPIO_PIN_2            // Row 3 pin
+
+/* Key mapping matrix (row x column) */
+static const KeypadKey_t keymap[3][4] = {
+    /* Columns:   1       2       3       4      */
+    { KEY_M1,  KEY_M2,  KEY_M3,  KEY_M4 },  // Row 1
+    { KEY_C1,  KEY_C2,  KEY_C3,  KEY_C4 },  // Row 2
+    { KEY_HLP, KEY_ENT, KEY_NONE, KEY_NONE} // Row 3
+};
+
+/* Local function prototypes */
+static void Keypad_Task(void *p_arg);
+static KeypadKey_t Keypad_Scan(void);
+
+/**
+ * @brief Initialize keypad hardware and OS resources
+ * @param p_err Pointer to error code
+ */
+void Keypad_Init(OS_ERR *p_err) {
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    
+    /* Prevent multiple initializations */
+    if (KeypadInitialized) {
+        *p_err = OS_ERR_NONE;
+        return;
+    }
+
+    /* Create uC/OS-III objects */
+    OSFlagCreate(&KeypadFlags, "Keypad Flags", 0, p_err);
+    if (*p_err != OS_ERR_NONE) return;
+
+    OSMutexCreate(&KeypadMutex, "Keypad Mutex", p_err);
+    if (*p_err != OS_ERR_NONE) return;
+
+    OSQCreate(&KeypadQ, "Keypad Queue", KEYPAD_QUEUE_SIZE, p_err);
+    if (*p_err != OS_ERR_NONE) return;
+
+    /* Enable GPIO clocks */
+    __HAL_RCC_GPIOD_CLK_ENABLE();
+    __HAL_RCC_GPIOG_CLK_ENABLE();
+
+    /* Configure column pins as open-drain outputs */
+    GPIO_InitStruct.Pin = COL1_PIN | COL2_PIN | COL3_PIN | COL4_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(COL_PORT, &GPIO_InitStruct);
+
+    /* Configure row pins as inputs with pull-up and interrupts */
+    GPIO_InitStruct.Pin = ROW1_PIN | ROW2_PIN | ROW3_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING | GPIO_MODE_IT_RISING;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(ROW_PORT, &GPIO_InitStruct);
+
+    /* Set all columns to high (inactive) */
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN | COL2_PIN | COL3_PIN | COL4_PIN, GPIO_PIN_SET);
+
+    /* Configure and enable EXTI interrupts */
+    HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);  // ROW1 (PG0)
+    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+    HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);  // ROW2 (PG1)
+    HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+    HAL_NVIC_SetPriority(EXTI2_IRQn, 5, 0);  // ROW3 (PG2)
+    HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+    
+    KeypadInitialized = true;
+}
+
+/**
+ * @brief Start keypad scanning task
+ * @param p_err Pointer to error code
+ */
+void Keypad_Start(OS_ERR *p_err) {
+    if (!KeypadInitialized) {
+        *p_err = OS_ERR_OBJ_TYPE;
+        return;
+    }
+    
+    OSTaskCreate(&KeypadTCB,
+                "Keypad Task",
+                Keypad_Task,
+                0,
+                KEYPAD_TASK_PRIO,
+                &KeypadStk[0],
+                KEYPAD_TASK_STK_SIZE / 10,
+                KEYPAD_TASK_STK_SIZE,
+                0,
+                0,
+                0,
+                (OS_OPT_TASK_STK_CLR | OS_OPT_TASK_STK_CHK),
+                p_err);
+}
+
+/**
+ * @brief Keypad task - processes key events
+ * @param p_arg Unused parameter
+ */
+static void Keypad_Task(void *p_arg) {
+    OS_ERR      err;
+    KeypadEvent_t event;
+    CPU_TS      ts;
+    OS_FLAGS    flags;
+
+    (void)p_arg;  // Prevent compiler warning
+
+    while (DEF_TRUE) {
+        /* Wait for key event flag */
+        flags = OSFlagPend(&KeypadFlags,
+                          (OS_FLAGS)1,
+                          0,
+                          OS_OPT_PEND_FLAG_SET_ANY | OS_OPT_PEND_FLAG_CONSUME,
+                          &ts,
+                          &err);
+
+        if (err == OS_ERR_NONE) {
+            /* Protect scan operation with mutex */
+            OSMutexPend(&KeypadMutex, 0, OS_OPT_PEND_BLOCKING, 0, &err);
+            KeypadKey_t key = Keypad_Scan();
+            bool pressed = (flags & 1);
+            OSMutexPost(&KeypadMutex, OS_OPT_POST_NONE, &err);
+
+            if (key != KEY_NONE) {
+                /* Post event to queue */
+                event.key = key;
+                event.ts = ts;
+                event.pressed = pressed;
+
+                OSQPost(&KeypadQ,
+                       &event,
+                       sizeof(KeypadEvent_t),
+                       OS_OPT_POST_FIFO,
+                       &err);
+            }
+        }
+    }
+}
+
+/**
+ * @brief Get a pressed key (blocks until key press or timeout)
+ * @param timeout Timeout in ticks
+ * @param p_err Pointer to error code
+ * @return KeypadKey_t Pressed key or KEY_NONE if timeout
+ */
+KeypadKey_t Keypad_GetKey(OS_TICK timeout, OS_ERR *p_err) {
+    KeypadEvent_t *p_event;
+    KeypadKey_t    key = KEY_NONE;
+
+    p_event = OSQPend(&KeypadQ,
+                     timeout,
+                     OS_OPT_PEND_BLOCKING,
+                     sizeof(KeypadEvent_t),
+                     0,
+                     p_err);
+
+    if (*p_err == OS_ERR_NONE && p_event->pressed) {
+        key = p_event->key;
+    }
+
+    return key;
+}
+
+/**
+ * @brief Get complete key event (press/release)
+ * @param p_event Pointer to store event data
+ * @param timeout Timeout in ticks
+ * @param p_err Pointer to error code
+ * @return true if event available, false if timeout
+ */
+bool Keypad_GetEvent(KeypadEvent_t *p_event, OS_TICK timeout, OS_ERR *p_err) {
+    KeypadEvent_t *p_qevent;
+    
+    p_qevent = OSQPend(&KeypadQ,
+                      timeout,
+                      OS_OPT_PEND_BLOCKING,
+                      sizeof(KeypadEvent_t),
+                      0,
+                      p_err);
+
+    if (*p_err == OS_ERR_NONE) {
+        *p_event = *p_qevent;
+        return true;
+    }
+    
+    return false;
+}
+
+/**
+ * @brief Scan keypad matrix to detect pressed keys
+ * @return KeypadKey_t Detected key or KEY_NONE
+ */
+static KeypadKey_t Keypad_Scan(void) {
+    GPIO_PinState rowState;
+    uint8_t col;
+    KeypadKey_t key = KEY_NONE;
+
+    /* Scan each column */
+    for (col = 0; col < 4; col++) {
+        /* Activate current column (set low) */
+        HAL_GPIO_WritePin(COL_PORT, (COL1_PIN << col), GPIO_PIN_RESET);
+
+        /* Short delay for signal stabilization */
+        CPU_TS_Tmr_Delay_US(10);  // 10μs delay
+
+        /* Check each row */
+        rowState = HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN);
+        if (rowState == GPIO_PIN_RESET) {
+            key = keymap[0][col];
+            goto exit_scan;
+        }
+
+        rowState = HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN);
+        if (rowState == GPIO_PIN_RESET) {
+            key = keymap[1][col];
+            goto exit_scan;
+        }
+
+        rowState = HAL_GPIO_ReadPin(ROW_PORT, ROW3_PIN);
+        if (rowState == GPIO_PIN_RESET) {
+            key = keymap[2][col];
+            goto exit_scan;
+        }
+
+        /* Deactivate current column (set high) */
+        HAL_GPIO_WritePin(COL_PORT, (COL1_PIN << col), GPIO_PIN_SET);
+    }
+
+exit_scan:
+    /* Ensure all columns are deactivated */
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN | COL2_PIN | COL3_PIN | COL4_PIN, GPIO_PIN_SET);
+    return key;
+}
+
+/**
+ * @brief Keypad interrupt service routine
+ * @param GPIO_Pin Pin that triggered interrupt
+ */
+void Keypad_ISR_Handler(uint16_t GPIO_Pin) {
+    OS_ERR err;
+    CPU_SR_ALLOC();
+
+    /* Determine event type (press=1, release=0) */
+    OS_FLAGS flags = (HAL_GPIO_ReadPin(ROW_PORT, GPIO_Pin) == GPIO_PIN_RESET) ? 1 : 0;
+
+    /* Post flag atomically */
+    CPU_CRITICAL_ENTER();
+    OSFlagPost(&KeypadFlags,
+              flags,
+              OS_OPT_POST_FLAG_SET,
+              &err);
+    CPU_CRITICAL_EXIT();
+
+    /* Clear interrupt */
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_Pin);
+}
