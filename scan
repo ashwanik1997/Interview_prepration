@@ -1,0 +1,38 @@
+#include "membrane.h"
+#include "membrane_gpio.h"
+
+static const MembraneKey_t keymap[3][4] = {
+    {MEMBRANE_KEY_M1, MEMBRANE_KEY_M2, MEMBRANE_KEY_M3, MEMBRANE_KEY_M4},
+    {MEMBRANE_KEY_C1, MEMBRANE_KEY_C2, MEMBRANE_KEY_C3, MEMBRANE_KEY_C4},
+    {MEMBRANE_KEY_HLP, MEMBRANE_KEY_ENT, MEMBRANE_KEY_NONE, MEMBRANE_KEY_NONE}
+};
+
+MembraneKey_t Membrane_Scan(void) {
+    for (uint8_t col = 0; col < 4; col++) {
+        // Activate current column
+        MembraneGPIO_SetPin(col, GPIO_PIN_RESET);
+        
+        // Stabilization delay
+        for(volatile int i = 0; i < 10; i++);
+
+        // Check rows
+        if (MembraneGPIO_ReadPin(MEMBRANE_ROW1) == GPIO_PIN_RESET) {
+            MembraneGPIO_SetPin(col, GPIO_PIN_SET);
+            return keymap[0][col];
+        }
+
+        if (MembraneGPIO_ReadPin(MEMBRANE_ROW2) == GPIO_PIN_RESET) {
+            MembraneGPIO_SetPin(col, GPIO_PIN_SET);
+            return keymap[1][col];
+        }
+
+        if (MembraneGPIO_ReadPin(MEMBRANE_ROW3) == GPIO_PIN_RESET) {
+            MembraneGPIO_SetPin(col, GPIO_PIN_SET);
+            return keymap[2][col];
+        }
+
+        // Deactivate column
+        MembraneGPIO_SetPin(col, GPIO_PIN_SET);
+    }
+    return MEMBRANE_KEY_NONE;
+}
