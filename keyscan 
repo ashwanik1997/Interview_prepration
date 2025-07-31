@@ -1,0 +1,116 @@
+method 1
+
+// Column output pins
+#define COL_PORT    GPIOD
+#define COL1_PIN    GPIO_PIN_0
+#define COL2_PIN    GPIO_PIN_1
+#define COL3_PIN    GPIO_PIN_2
+#define COL4_PIN    GPIO_PIN_3
+
+// Row input pins
+#define ROW_PORT    GPIOG
+#define ROW1_PIN    GPIO_PIN_0
+#define ROW2_PIN    GPIO_PIN_1
+#define ROW3_PIN    GPIO_PIN_2
+
+MembraneKey_t Keypad_GetKey(void)
+{
+    // Set all columns HIGH before starting scan
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN | COL2_PIN | COL3_PIN | COL4_PIN, GPIO_PIN_SET);
+
+    // ------- Check COL1 -------
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN, GPIO_PIN_RESET);
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_M1;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_C1;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW3_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_HLP;
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN, GPIO_PIN_SET); // reset after check
+
+    // ------- Check COL2 -------
+    HAL_GPIO_WritePin(COL_PORT, COL2_PIN, GPIO_PIN_RESET);
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_M2;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_C2;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW3_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_ENT;
+    HAL_GPIO_WritePin(COL_PORT, COL2_PIN, GPIO_PIN_SET); // reset after check
+
+    // ------- Check COL3 -------
+    HAL_GPIO_WritePin(COL_PORT, COL3_PIN, GPIO_PIN_RESET);
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_M3;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_C3;
+    HAL_GPIO_WritePin(COL_PORT, COL3_PIN, GPIO_PIN_SET); // reset after check
+
+    // ------- Check COL4 -------
+    HAL_GPIO_WritePin(COL_PORT, COL4_PIN, GPIO_PIN_RESET);
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_M4;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN) == GPIO_PIN_RESET)
+        return MEMBRANE_KEY_C4;
+    HAL_GPIO_WritePin(COL_PORT, COL4_PIN, GPIO_PIN_SET); // reset after check
+
+    return MEMBRANE_KEY_NONE;
+}
+
+
+method 2
+
+#include "keypad.h"
+
+// Column output pins
+#define COL_PORT    GPIOD
+#define COL1_PIN    GPIO_PIN_0
+#define COL2_PIN    GPIO_PIN_1
+#define COL3_PIN    GPIO_PIN_2
+#define COL4_PIN    GPIO_PIN_3
+
+// Row input pins
+#define ROW_PORT    GPIOG
+#define ROW1_PIN    GPIO_PIN_0
+#define ROW2_PIN    GPIO_PIN_1
+#define ROW3_PIN    GPIO_PIN_2
+
+#define SET_ALL_COLS_HIGH()  HAL_GPIO_WritePin(COL_PORT, COL1_PIN | COL2_PIN | COL3_PIN | COL4_PIN, GPIO_PIN_SET)
+
+// Optional: You can define row read macro to make code more readable
+#define IS_ROW_LOW(row_pin)  (HAL_GPIO_ReadPin(ROW_PORT, row_pin) == GPIO_PIN_RESET)
+
+MembraneKey_t Keypad_GetKey(void)
+{
+    // --- COL1 ---
+    SET_ALL_COLS_HIGH();
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN, GPIO_PIN_RESET);
+
+    if (IS_ROW_LOW(ROW1_PIN)) return MEMBRANE_KEY_M1;
+    if (IS_ROW_LOW(ROW2_PIN)) return MEMBRANE_KEY_C1;
+    if (IS_ROW_LOW(ROW3_PIN)) return MEMBRANE_KEY_HLP;
+
+    // --- COL2 ---
+    SET_ALL_COLS_HIGH();
+    HAL_GPIO_WritePin(COL_PORT, COL2_PIN, GPIO_PIN_RESET);
+
+    if (IS_ROW_LOW(ROW1_PIN)) return MEMBRANE_KEY_M2;
+    if (IS_ROW_LOW(ROW2_PIN)) return MEMBRANE_KEY_C2;
+    if (IS_ROW_LOW(ROW3_PIN)) return MEMBRANE_KEY_ENT;
+
+    // --- COL3 ---
+    SET_ALL_COLS_HIGH();
+    HAL_GPIO_WritePin(COL_PORT, COL3_PIN, GPIO_PIN_RESET);
+
+    if (IS_ROW_LOW(ROW1_PIN)) return MEMBRANE_KEY_M3;
+    if (IS_ROW_LOW(ROW2_PIN)) return MEMBRANE_KEY_C3;
+
+    // --- COL4 ---
+    SET_ALL_COLS_HIGH();
+    HAL_GPIO_WritePin(COL_PORT, COL4_PIN, GPIO_PIN_RESET);
+
+    if (IS_ROW_LOW(ROW1_PIN)) return MEMBRANE_KEY_M4;
+    if (IS_ROW_LOW(ROW2_PIN)) return MEMBRANE_KEY_C4;
+
+    return MEMBRANE_KEY_NONE;
+}
