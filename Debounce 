@@ -1,0 +1,119 @@
+#include "keypad.h"
+#include "os.h"
+
+#define COL_PORT GPIOD
+#define COL1_PIN GPIO_PIN_0
+#define COL2_PIN GPIO_PIN_1
+#define COL3_PIN GPIO_PIN_2
+#define COL4_PIN GPIO_PIN_3
+
+#define ROW_PORT GPIOG
+#define ROW1_PIN GPIO_PIN_0
+#define ROW2_PIN GPIO_PIN_1
+#define ROW3_PIN GPIO_PIN_2
+
+static OS_TMR KeypadDebounceTmr;
+static OS_SEM KeypadSem;
+static MembraneKey_t currentKey = MEMBRANE_KEY_NONE;
+
+// Debounce Timer Callback
+void KeypadDebounceTmrCallback(void *p_tmr, void *p_arg)
+{
+    OS_ERR err;
+    OSSemPost(&KeypadSem, OS_OPT_POST_1, &err);
+}
+
+// Init timer and semaphore
+void KeypadDebounceInit(void)
+{
+    OS_ERR err;
+
+    OSTmrCreate(&KeypadDebounceTmr,
+                "Keypad Debounce Timer",
+                0,
+                20, // 20 ms debounce (assuming 1 tick = 1 ms)
+                OS_OPT_TMR_ONE_SHOT,
+                KeypadDebounceTmrCallback,
+                NULL,
+                &err);
+
+    OSSemCreate(&KeypadSem, "Keypad Semaphore", 0, &err);
+}
+
+// Scan keypad and return key
+MembraneKey_t KeypadScan(void)
+{
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN|COL2_PIN|COL3_PIN|COL4_PIN, GPIO_PIN_SET);
+
+    // COL1 LOW
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN, GPIO_PIN_RESET);
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_M1;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_C1;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW3_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_HLP;
+    HAL_GPIO_WritePin(COL_PORT, COL1_PIN, GPIO_PIN_SET);
+
+    // COL2 LOW
+    HAL_GPIO_WritePin(COL_PORT, COL2_PIN, GPIO_PIN_RESET);
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_M2;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_C2;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW3_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_ENT;
+    HAL_GPIO_WritePin(COL_PORT, COL2_PIN, GPIO_PIN_SET);
+
+    // COL3 LOW
+    HAL_GPIO_WritePin(COL_PORT, COL3_PIN, GPIO_PIN_RESET);
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_M3;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_C3;
+    HAL_GPIO_WritePin(COL_PORT, COL3_PIN, GPIO_PIN_SET);
+
+    // COL4 LOW
+    HAL_GPIO_WritePin(COL_PORT, COL4_PIN, GPIO_PIN_RESET);
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW1_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_M4;
+    if (HAL_GPIO_ReadPin(ROW_PORT, ROW2_PIN) == GPIO_PIN_RESET) return MEMBRANE_KEY_C4;
+    HAL_GPIO_WritePin(COL_PORT, COL4_PIN, GPIO_PIN_SET);
+
+    return MEMBRANE_KEY_NONE;
+}
+
+// Keypad Task
+void KeypadTask(void *p_arg)
+{
+    OS_ERR err;
+    MembraneKey_t key;
+
+    KeypadDebounceInit();
+
+    while (DEF_TRUE) {
+        key = KeypadScan();
+        if (key != MEMBRANE_KEY_NONE) {
+            currentKey = key;
+
+            if (OSTmrStateGet(&KeypadDebounceTmr) != OS_TMR_STATE_RUNNING) {
+                OSTmrStart(&KeypadDebounceTmr, &err);
+            }
+
+            OSSemPend(&KeypadSem, 0, OS_OPT_PEND_BLOCKING, NULL, &err);
+
+            if (KeypadScan() == currentKey) {
+                HandleKeypadEvent(currentKey);
+            }
+        }
+
+        OSTimeDlyHMSM(0, 0, 0, 10, OS_OPT_TIME_HMSM_STRICT, &err);
+    }
+}
+
+// Example key handler
+void HandleKeypadEvent(MembraneKey_t key)
+{
+    switch (key)
+    {
+        case MEMBRANE_KEY_M1:  // Do something
+            break;
+        case MEMBRANE_KEY_C1:
+            break;
+        case MEMBRANE_KEY_ENT:
+            break;
+        default:
+            break;
+    }
+}
