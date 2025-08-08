@@ -1,0 +1,48 @@
+static const u8 icnl9707_init_sequence[] = {
+    // Software Reset
+    0x01, 0x00,  // SWRESET
+    DELAY_CMD, 5,  // Wait 5ms
+    
+    // Sleep Out
+    0x11, 0x00,  // SLPOUT
+    DELAY_CMD, 120,  // Wait 120ms
+    
+    // Pixel Format (24-bit RGB)
+    0x3A, 0x01, 0x77,  // COLMOD, RGB888
+    
+    // Memory Access Control
+    0x36, 0x01, 0x00,  // MADCTL, Normal orientation
+    
+    // Interface Control
+    0xB0, 0x01, 0x00,  // Unknown vendor command
+    
+    // Gamma Setting
+    0x26, 0x01, 0x01,  // GAMSET, Gamma curve 1
+    
+    // Positive Gamma Correction
+    0xE0, 0x0F,
+    0x00, 0x10, 0x20, 0x30, 0x40,  // Example values
+    0x50, 0x60, 0x70, 0x80, 0x90,
+    0xA0, 0xB0, 0xC0, 0xD0, 0xE0,
+    0xF0,
+    
+    // Negative Gamma Correction
+    0xE1, 0x0F,
+    0x00, 0x10, 0x20, 0x30, 0x40,  // Example values
+    0x50, 0x60, 0x70, 0x80, 0x90,
+    0xA0, 0xB0, 0xC0, 0xD0, 0xE0,
+    0xF0,
+    
+    // Display ON
+    0x29, 0x00,  // DISPON
+    DELAY_CMD, 20,  // Wait 20ms
+    
+    // Tearing Effect ON (optional)
+    0x35, 0x01, 0x00,  // TEON, Mode 0
+    
+    // Set initial brightness (50%)
+    0x51, 0x01, 0x80,  // WRDISBV, 50% brightness
+    
+    // Enable CABC
+    0x55, 0x01, 0x02,  // WRCABC, Still image mode
+};
