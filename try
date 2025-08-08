@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-//------------------ Enum for Bitmaps ------------------//
+// -------- Enum for Image IDs -------- //
 typedef enum {
     IMAGE_LOGO,
     IMAGE_ICON1,
@@ -9,60 +9,64 @@ typedef enum {
     IMAGE_COUNT
 } BitmapEnum_t;
 
-//------------------ 2D Image Arrays ------------------//
-const uint8_t image_logo[2][2] = {
-    {0xFF, 0x00},
-    {0x00, 0xFF}
+// -------- Example Bitmaps in GLCD Format -------- //
+// Each byte here represents 8 vertical pixels.
+// This is just a small dummy example.
+
+const uint8_t image_logo[] = {
+    0xFF, 0x00,
+    0x00, 0xFF
+}; // 2 bytes width, 16 pixels high (paged)
+
+// Normally you'd have real GLCD-generated image data:
+const uint8_t image_icon1[] = {
+    0x11, 0x22, 0x33,
+    0x44, 0x55, 0x66,
+    0x77, 0x88, 0x99
 };
 
-const uint8_t image_icon1[3][3] = {
-    {0x11, 0x22, 0x33},
-    {0x44, 0x55, 0x66},
-    {0x77, 0x88, 0x99}
+const uint8_t image_icon2[] = {
+    0xAA, 0xBB, 0xCC,
+    0xDD, 0xEE, 0xFF
 };
 
-const uint8_t image_icon2[2][3] = {
-    {0xAA, 0xBB, 0xCC},
-    {0xDD, 0xEE, 0xFF}
-};
-
-//------------------ Image Metadata ------------------//
+// -------- Image Metadata -------- //
 typedef struct {
-    const uint8_t (*data)[];
-    uint16_t width;
-    uint16_t height;
-} Bitmap2D_t;
+    const uint8_t *data;   // GLCD-compatible bitmap
+    uint8_t width_bytes;   // Width in bytes, NOT pixels
+    uint8_t height_pages;  // Height in pages (1 page = 8 pixels high)
+} GLCD_Bitmap_t;
 
-// Use `void *` cast to handle pointer-to-2D-array of unknown width
-const Bitmap2D_t gBitmaps[IMAGE_COUNT] = {
-    [IMAGE_LOGO] = { (const uint8_t(*)[])image_logo, 2, 2 },
-    [IMAGE_ICON1] = { (const uint8_t(*)[])image_icon1, 3, 3 },
-    [IMAGE_ICON2] = { (const uint8_t(*)[])image_icon2, 3, 2 }
+const GLCD_Bitmap_t gBitmaps[IMAGE_COUNT] = {
+    [IMAGE_LOGO]  = { image_logo, 2, 2 }, // 2 bytes wide, 16px tall
+    [IMAGE_ICON1] = { image_icon1, 3, 3 },
+    [IMAGE_ICON2] = { image_icon2, 3, 2 }
 };
 
-//------------------ Draw Function ------------------//
-void DrawBitmap2D(uint16_t x, uint16_t y, BitmapEnum_t id) {
-    if (id >= IMAGE_COUNT) {
-        printf("Invalid image ID\n");
-        return;
-    }
+// -------- GLCD Draw Function -------- //
+// Replace with your actual GLCD page/column write code
+void GLCD_DrawBitmap(uint8_t x, uint8_t y, BitmapEnum_t id) {
+    if (id >= IMAGE_COUNT) return;
 
-    const Bitmap2D_t *bmp = &gBitmaps[id];
-    printf("Drawing image at X: %d Y: %d, W: %d H: %d\n", x, y, bmp->width, bmp->height);
+    const GLCD_Bitmap_t *bmp = &gBitmaps[id];
 
-    for (uint16_t row = 0; row < bmp->height; row++) {
-        for (uint16_t col = 0; col < bmp->width; col++) {
-            uint8_t pixel = bmp->data[row][col];
-            printf("%02X ", pixel);  // Simulated pixel output
+    for (uint8_t page = 0; page < bmp->height_pages; page++) {
+        // Set GLCD page & column here
+        // Example: GLCD_SetPage(y/8 + page); GLCD_SetColumn(x);
+
+        for (uint8_t col = 0; col < bmp->width_bytes; col++) {
+            uint8_t byte = bmp->data[page * bmp->width_bytes + col];
+            // Send byte to GLCD data register
+            printf("%02X ", byte); // Simulate output
         }
         printf("\n");
     }
 }
 
-//------------------ Main Example ------------------//
+// -------- Main Example -------- //
 int main(void) {
-    DrawBitmap2D(10, 20, IMAGE_LOGO);
+    GLCD_DrawBitmap(0, 0, IMAGE_LOGO);
     printf("\n");
-    DrawBitmap2D(30, 40, IMAGE_ICON1);
+    GLCD_DrawBitmap(10, 16, IMAGE_ICON1);
     return 0;
 }
