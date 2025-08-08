@@ -46,3 +46,405 @@ static const u8 icnl9707_init_sequence[] = {
     // Enable CABC
     0x55, 0x01, 0x02,  // WRCABC, Still image mode
 };
+
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (C) 2023 Your Name <your.email@example.com>
+ *
+ * Driver for Chipone ICNL9707 MIPI DSI Display Controller
+ */
+
+#include <linux/module.h>
+#include <linux/of_device.h>
+#include <linux/of_gpio.h>
+#include <linux/delay.h>
+#include <linux/gpio/consumer.h>
+#include <linux/regulator/consumer.h>
+#include <linux/backlight.h>
+#include <video/mipi_display.h>
+#include <drm/drm_mipi_dsi.h>
+#include <drm/drm_panel.h>
+
+#define DRIVER_NAME "panel-chipone-icnl9707"
+
+struct icnl9707_panel {
+    struct drm_panel panel;
+    struct mipi_dsi_device *dsi;
+    struct backlight_device *backlight;
+    
+    struct regulator *vci;
+    struct regulator *iovcc;
+    struct regulator *vsp;
+    struct regulator *vsn;
+    
+    struct gpio_desc *reset_gpio;
+    struct gpio_desc *enable_gpio;
+    
+    bool prepared;
+    bool enabled;
+};
+
+static inline struct icnl9707_panel *to_icnl9707_panel(struct drm_panel *panel)
+{
+    return container_of(panel, struct icnl9707_panel, panel);
+}
+
+static int icnl9707_panel_power_on(struct icnl9707_panel *ctx)
+{
+    int ret;
+    
+    /* Enable power supplies */
+    ret = regulator_enable(ctx->iovcc);
+    if (ret < 0) {
+        dev_err(ctx->panel.dev, "Failed to enable IOVCC: %d\n", ret);
+        return ret;
+    }
+    
+    ret = regulator_enable(ctx->vci);
+    if (ret < 0) {
+        dev_err(ctx->panel.dev, "Failed to enable VCI: %d\n", ret);
+        goto err_disable_iovcc;
+    }
+    
+    ret = regulator_enable(ctx->vsp);
+    if (ret < 0) {
+        dev_err(ctx->panel.dev, "Failed to enable VSP: %d\n", ret);
+        goto err_disable_vci;
+    }
+    
+    ret = regulator_enable(ctx->vsn);
+    if (ret < 0) {
+        dev_err(ctx->panel.dev, "Failed to enable VSN: %d\n", ret);
+        goto err_disable_vsp;
+    }
+    
+    /* Assert reset */
+    gpiod_set_value(ctx->reset_gpio, 1);
+    usleep_range(10000, 11000); /* 10ms */
+    
+    /* Deassert reset */
+    gpiod_set_value(ctx->reset_gpio, 0);
+    msleep(120); /* Wait 120ms after reset */
+    
+    return 0;
+
+err_disable_vsp:
+    regulator_disable(ctx->vsp);
+err_disable_vci:
+    regulator_disable(ctx->vci);
+err_disable_iovcc:
+    regulator_disable(ctx->iovcc);
+    return ret;
+}
+
+static int icnl9707_panel_power_off(struct icnl9707_panel *ctx)
+{
+    /* Assert reset */
+    gpiod_set_value(ctx->reset_gpio, 1);
+    
+    /* Disable power supplies in reverse order */
+    regulator_disable(ctx->vsn);
+    regulator_disable(ctx->vsp);
+    regulator_disable(ctx->vci);
+    regulator_disable(ctx->iovcc);
+    
+    return 0;
+}
+
+static int icnl9707_panel_unprepare(struct drm_panel *panel)
+{
+    struct icnl9707_panel *ctx = to_icnl9707_panel(panel);
+    
+    if (!ctx->prepared)
+        return 0;
+    
+    /* Send display off command */
+    mipi_dsi_dcs_write(ctx->dsi, MIPI_DCS_SET_DISPLAY_OFF, NULL, 0);
+    msleep(20);
+    
+    /* Enter sleep mode */
+    mipi_dsi_dcs_write(ctx->dsi, MIPI_DCS_ENTER_SLEEP_MODE, NULL, 0);
+    msleep(120);
+    
+    icnl9707_panel_power_off(ctx);
+    
+    ctx->prepared = false;
+    
+    return 0;
+}
+
+static int icnl9707_panel_prepare(struct drm_panel *panel)
+{
+    struct icnl9707_panel *ctx = to_icnl9707_panel(panel);
+    int ret;
+    
+    if (ctx->prepared)
+        return 0;
+    
+    ret = icnl9707_panel_power_on(ctx);
+    if (ret < 0)
+        return ret;
+    
+    /* Initialize the panel */
+    ret = mipi_dsi_dcs_write(ctx->dsi, 0x11, NULL, 0); /* Sleep Out */
+    if (ret < 0) {
+        dev_err(panel->dev, "Failed to send Sleep Out command: %d\n", ret);
+        goto power_off;
+    }
+    msleep(120); /* Wait 120ms after Sleep Out */
+    
+    /* Set pixel format to RGB888 */
+    ret = mipi_dsi_dcs_write(ctx->dsi, 0x3A, (u8[]){0x77}, 1);
+    if (ret < 0) {
+        dev_err(panel->dev, "Failed to set pixel format: %d\n", ret);
+        goto power_off;
+    }
+    
+    /* Memory access control */
+    ret = mipi_dsi_dcs_write(ctx->dsi, 0x36, (u8[]){0x00}, 1);
+    if (ret < 0) {
+        dev_err(panel->dev, "Failed to set memory access: %d\n", ret);
+        goto power_off;
+    }
+    
+    /* Gamma settings */
+    ret = mipi_dsi_dcs_write(ctx->dsi, 0x26, (u8[]){0x01}, 1); /* Gamma curve 1 */
+    if (ret < 0) {
+        dev_err(panel->dev, "Failed to set gamma: %d\n", ret);
+        goto power_off;
+    }
+    
+    /* Positive gamma correction */
+    ret = mipi_dsi_dcs_write(ctx->dsi, 0xE0, 
+        (u8[]){0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 
+               0x80, 0x90, 0xA0, 0xB0, 0xC0, 0xD0, 0xE0, 0xF0}, 16);
+    if (ret < 0) {
+        dev_err(panel->dev, "Failed to set positive gamma: %d\n", ret);
+        goto power_off;
+    }
+    
+    /* Negative gamma correction */
+    ret = mipi_dsi_dcs_write(ctx->dsi, 0xE1, 
+        (u8[]){0x00, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 
+               0x80, 0x90, 0xA0, 0xB0, 0xC0, 0xD0, 0xE0, 0xF0}, 16);
+    if (ret < 0) {
+        dev_err(panel->dev, "Failed to set negative gamma: %d\n", ret);
+        goto power_off;
+    }
+    
+    ctx->prepared = true;
+    return 0;
+
+power_off:
+    icnl9707_panel_power_off(ctx);
+    return ret;
+}
+
+static int icnl9707_panel_enable(struct drm_panel *panel)
+{
+    struct icnl9707_panel *ctx = to_icnl9707_panel(panel);
+    int ret;
+    
+    if (ctx->enabled)
+        return 0;
+    
+    /* Turn on display */
+    ret = mipi_dsi_dcs_write(ctx->dsi, MIPI_DCS_SET_DISPLAY_ON, NULL, 0);
+    if (ret < 0) {
+        dev_err(panel->dev, "Failed to set display on: %d\n", ret);
+        return ret;
+    }
+    msleep(20);
+    
+    /* Enable backlight */
+    if (ctx->backlight) {
+        ret = backlight_enable(ctx->backlight);
+        if (ret < 0)
+            return ret;
+    }
+    
+    ctx->enabled = true;
+    return 0;
+}
+
+static int icnl9707_panel_disable(struct drm_panel *panel)
+{
+    struct icnl9707_panel *ctx = to_icnl9707_panel(panel);
+    int ret;
+    
+    if (!ctx->enabled)
+        return 0;
+    
+    /* Disable backlight */
+    if (ctx->backlight) {
+        ret = backlight_disable(ctx->backlight);
+        if (ret < 0)
+            return ret;
+    }
+    
+    ctx->enabled = false;
+    return 0;
+}
+
+static int icnl9707_panel_get_modes(struct drm_panel *panel,
+                                   struct drm_connector *connector)
+{
+    struct drm_display_mode *mode;
+    
+    mode = drm_mode_duplicate(connector->dev, &default_mode);
+    if (!mode) {
+        dev_err(panel->dev, "Failed to add mode %ux%u@%u\n",
+               default_mode.hdisplay, default_mode.vdisplay,
+               drm_mode_vrefresh(&default_mode));
+        return -ENOMEM;
+    }
+    
+    drm_mode_set_name(mode);
+    mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
+    drm_mode_probed_add(connector, mode);
+    
+    connector->display_info.width_mm = 68;  /* Example panel width */
+    connector->display_info.height_mm = 121; /* Example panel height */
+    connector->display_info.bpc = 8; /* 8 bits per color */
+    
+    return 1;
+}
+
+static const struct drm_panel_funcs icnl9707_panel_funcs = {
+    .unprepare = icnl9707_panel_unprepare,
+    .prepare = icnl9707_panel_prepare,
+    .enable = icnl9707_panel_enable,
+    .disable = icnl9707_panel_disable,
+    .get_modes = icnl9707_panel_get_modes,
+};
+
+static int icnl9707_bl_update_status(struct backlight_device *bl)
+{
+    struct icnl9707_panel *ctx = bl_get_data(bl);
+    u16 brightness = bl->props.brightness;
+    int ret;
+    
+    if (bl->props.power != FB_BLANK_UNBLANK ||
+        bl->props.fb_blank != FB_BLANK_UNBLANK ||
+        bl->props.state & BL_CORE_FBBLANK)
+        brightness = 0;
+    
+    /* WRDISBV - Write Display Brightness */
+    ret = mipi_dsi_dcs_write(ctx->dsi, 0x51, (u8[]){brightness}, 1);
+    if (ret < 0)
+        return ret;
+    
+    /* WRCABC - Write Content Adaptive Brightness Control */
+    return mipi_dsi_dcs_write(ctx->dsi, 0x55, (u8[]){0x02}, 1); /* Still image mode */
+}
+
+static const struct backlight_ops icnl9707_bl_ops = {
+    .update_status = icnl9707_bl_update_status,
+};
+
+static int icnl9707_panel_probe(struct mipi_dsi_device *dsi)
+{
+    struct device *dev = &dsi->dev;
+    struct icnl9707_panel *ctx;
+    struct backlight_properties bl_props;
+    int ret;
+    
+    ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
+    if (!ctx)
+        return -ENOMEM;
+    
+    ctx->dsi = dsi;
+    
+    /* Get regulators */
+    ctx->vci = devm_regulator_get(dev, "vci");
+    if (IS_ERR(ctx->vci))
+        return dev_err_probe(dev, PTR_ERR(ctx->vci), "Failed to get VCI regulator\n");
+    
+    ctx->iovcc = devm_regulator_get(dev, "iovcc");
+    if (IS_ERR(ctx->iovcc))
+        return dev_err_probe(dev, PTR_ERR(ctx->iovcc), "Failed to get IOVCC regulator\n");
+    
+    ctx->vsp = devm_regulator_get(dev, "vsp");
+    if (IS_ERR(ctx->vsp))
+        return dev_err_probe(dev, PTR_ERR(ctx->vsp), "Failed to get VSP regulator\n");
+    
+    ctx->vsn = devm_regulator_get(dev, "vsn");
+    if (IS_ERR(ctx->vsn))
+        return dev_err_probe(dev, PTR_ERR(ctx->vsn), "Failed to get VSN regulator\n");
+    
+    /* Get reset GPIO */
+    ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+    if (IS_ERR(ctx->reset_gpio))
+        return dev_err_probe(dev, PTR_ERR(ctx->reset_gpio), "Failed to get reset GPIO\n");
+    
+    /* Get enable GPIO (optional) */
+    ctx->enable_gpio = devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_HIGH);
+    
+    /* Initialize backlight */
+    memset(&bl_props, 0, sizeof(bl_props));
+    bl_props.type = BACKLIGHT_RAW;
+    bl_props.max_brightness = 255;
+    bl_props.brightness = 255;
+    
+    ctx->backlight = devm_backlight_device_register(dev, "icnl9707-bl", dev, ctx,
+                                                  &icnl9707_bl_ops, &bl_props);
+    if (IS_ERR(ctx->backlight))
+        return dev_err_probe(dev, PTR_ERR(ctx->backlight), "Failed to register backlight\n");
+    
+    drm_panel_init(&ctx->panel, dev, &icnl9707_panel_funcs, DRM_MODE_CONNECTOR_DSI);
+    
+    ret = drm_panel_of_backlight(&ctx->panel);
+    if (ret)
+        return dev_err_probe(dev, ret, "Failed to get backlight device\n");
+    
+    drm_panel_add(&ctx->panel);
+    
+    /* Configure DSI device */
+    dsi->lanes = 4;
+    dsi->format = MIPI_DSI_FMT_RGB888;
+    dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
+                     MIPI_DSI_MODE_LPM | MIPI_DSI_CLOCK_NON_CONTINUOUS;
+    
+    ret = mipi_dsi_attach(dsi);
+    if (ret < 0) {
+        dev_err(dev, "Failed to attach to DSI host: %d\n", ret);
+        drm_panel_remove(&ctx->panel);
+        return ret;
+    }
+    
+    dev_set_drvdata(dev, ctx);
+    
+    dev_info(dev, "ICNL9707 panel probed successfully\n");
+    
+    return 0;
+}
+
+static int icnl9707_panel_remove(struct mipi_dsi_device *dsi)
+{
+    struct icnl9707_panel *ctx = dev_get_drvdata(&dsi->dev);
+    
+    mipi_dsi_detach(dsi);
+    drm_panel_remove(&ctx->panel);
+    
+    return 0;
+}
+
+static const struct of_device_id icnl9707_of_match[] = {
+    { .compatible = "chipone,icnl9707" },
+    { }
+};
+MODULE_DEVICE_TABLE(of, icnl9707_of_match);
+
+static struct mipi_dsi_driver icnl9707_panel_driver = {
+    .probe = icnl9707_panel_probe,
+    .remove = icnl9707_panel_remove,
+    .driver = {
+        .name = DRIVER_NAME,
+        .of_match_table = icnl9707_of_match,
+    },
+};
+module_mipi_dsi_driver(icnl9707_panel_driver);
+
+MODULE_AUTHOR("Your Name <your.email@example.com>");
+MODULE_DESCRIPTION("DRM Driver for Chipone ICNL9707 MIPI-DSI Display Panels");
+MODULE_LICENSE("GPL");
