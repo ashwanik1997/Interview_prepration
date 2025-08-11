@@ -1,0 +1,106 @@
+I see from your screenshot that you’re in LVGL 9.4 (lv_conf.h + lv_indev_read_cb_t) —
+the lv_indev_read_cb_t typedef tells you exactly how your touch driver’s read callback must look:
+
+typedef void (*lv_indev_read_cb_t)(lv_indev_t * indev, lv_indev_data_t * data);
+
+That means your function must:
+
+Take:
+
+1. a pointer to the input device object (indev)
+
+
+2. a pointer to an lv_indev_data_t struct (data)
+
+
+
+Fill:
+
+data->point.x and data->point.y (for touch/mouse)
+
+data->state (LV_INDEV_STATE_PRESSED or LV_INDEV_STATE_RELEASED)
+
+Optionally data->continue_reading (true if you want LVGL to call your callback again immediately, e.g., if you have a buffer of events)
+
+
+
+
+---
+
+Example: Touch driver read callback for Linux evdev
+
+Here’s a minimal read callback + registration for your LVGL 9.4 setup.
+
+#include "lvgl.h"
+#include <linux/input.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+
+#define TOUCH_DEVICE "/dev/input/event0"  // Change to your input device
+
+static int touch_fd = -1;
+static void touch_read_cb(lv_indev_t * indev, lv_indev_data_t * data);
+
+void touch_driver_init(void)
+{
+    touch_fd = open(TOUCH_DEVICE, O_RDONLY | O_NONBLOCK);
+    if (touch_fd < 0) {
+        perror("Failed to open touch device");
+        return;
+    }
+
+    lv_indev_t * indev = lv_indev_create();
+    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(indev, touch_read_cb);
+}
+
+static void touch_read_cb(lv_indev_t * indev, lv_indev_data_t * data)
+{
+    struct input_event ev;
+    static lv_coord_t last_x = 0;
+    static lv_coord_t last_y = 0;
+    static bool pressed = false;
+
+    while (read(touch_fd, &ev, sizeof(ev)) > 0) {
+        if (ev.type == EV_ABS) {
+            if (ev.code == ABS_X) last_x = ev.value;
+            else if (ev.code == ABS_Y) last_y = ev.value;
+        } else if (ev.type == EV_KEY && ev.code == BTN_TOUCH) {
+            pressed = (ev.value != 0);
+        }
+    }
+
+    data->point.x = last_x;
+    data->point.y = last_y;
+    data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+}
+
+
+---
+
+How it connects to your screenshot
+
+The touch_read_cb matches the typedef you see:
+
+typedef void (*lv_indev_read_cb_t)(lv_indev_t * indev, lv_indev_data_t * data);
+
+In touch_read_cb, we fill the lv_indev_data_t fields from Linux evdev events.
+
+In touch_driver_init, we register the driver with LVGL.
+
+
+
+---
+
+If you want, I can extend this so:
+
+It scales raw coordinates to your display resolution
+
+Supports multi-touch with ABS_MT events
+
+Works with LV_INDEV_MODE_EVENT (event-driven instead of polling)
+
+
+Do you want me to make that scaled + multi-touch Linux driver?
+
