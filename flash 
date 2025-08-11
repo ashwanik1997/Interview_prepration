@@ -1,0 +1,66 @@
+#include "stm32f4xx_hal.h"
+#include <string.h>
+
+#define USER_FLASH_START_ADDR   0x080E0000  // Start of Sector 11
+#define USER_FLASH_SECTOR       FLASH_SECTOR_11
+#define USER_FLASH_VOLTAGE      FLASH_VOLTAGE_RANGE_3 // 2.7V–3.6V
+
+// Variable stored in reserved sector
+__attribute__((section(".data_flash"))) const uint32_t myStoredValue = 0xFFFFFFFF;
+
+// Erase the reserved sector
+HAL_StatusTypeDef Flash_EraseUserSector(void)
+{
+    HAL_StatusTypeDef status;
+    FLASH_EraseInitTypeDef eraseInit;
+    uint32_t sectorError;
+
+    HAL_FLASH_Unlock();
+
+    eraseInit.TypeErase     = FLASH_TYPEERASE_SECTORS;
+    eraseInit.Sector        = USER_FLASH_SECTOR;
+    eraseInit.NbSectors     = 1;
+    eraseInit.VoltageRange  = USER_FLASH_VOLTAGE;
+
+    status = HAL_FLASHEx_Erase(&eraseInit, &sectorError);
+
+    HAL_FLASH_Lock();
+    return status;
+}
+
+// Write a 32-bit value to reserved flash
+HAL_StatusTypeDef Flash_WriteWord(uint32_t address, uint32_t data)
+{
+    HAL_StatusTypeDef status;
+    HAL_FLASH_Unlock();
+    status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, address, data);
+    HAL_FLASH_Lock();
+    return status;
+}
+
+// Read from reserved flash
+uint32_t Flash_ReadWord(uint32_t address)
+{
+    return *(__IO uint32_t*)address;
+}
+
+int main(void)
+{
+    HAL_Init();
+    SystemClock_Config();
+
+    uint32_t readVal;
+
+    // Erase sector 11
+    if (Flash_EraseUserSector() == HAL_OK)
+    {
+        // Write data to flash
+        Flash_WriteWord(USER_FLASH_START_ADDR, 0x12345678);
+    }
+
+    // Read back
+    readVal = Flash_ReadWord(USER_FLASH_START_ADDR);
+
+    // Now readVal should be 0x12345678
+    while (1) {}
+}
