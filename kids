@@ -1,0 +1,47 @@
+
+1. Mathematics in Medical Devices
+
+Mathematics is the "language" of medical device design — from the first concept to performance verification.
+
+Area	Application Examples
+
+Signal Processing:-	ECG, EEG, and ultrasound devices use Fourier transforms, filtering, and statistical modeling to clean up and interpret sensor signals.
+Calibration & Control Systems:-	Infusion pumps calculate drug delivery rates using differential equations to ensure precise dosage.
+Imaging Algorithms:- 	CT, MRI, PET rely on matrix algebra, tomographic reconstruction (Radon transforms), and 3D interpolation.
+Error & Risk Analysis:- 	Blood glucose meters use error propagation formulas and probabilistic models to ensure accuracy.
+Optimization:-	Prosthetic limb design uses optimization algorithms to minimize weight while maintaining strength.
+
+2. Physics in Medical Devices
+
+Physics translates medical needs into measurable, physical phenomena that devices can use.
+
+Physics Branch 	How It’s Used
+
+Electromagnetism:- 	MRI uses nuclear magnetic resonance; pacemakers use electric fields to stimulate heart muscles.
+Acoustics:- 	Ultrasound imaging works via sound wave propagation and Doppler effects.
+Optics	:- Endoscopes and pulse oximeters rely on light absorption, scattering, and reflection principles.
+Thermodynamics	:- Cryosurgery tools use heat transfer equations; incubators regulate temperature based on thermal dynamics.
+Radiation :- Physics	X-ray machines use photon-matter interaction models to produce diagnostic images.
+
+3. Mechanics in Medical Devices
+
+Mechanics ensures the device can physically interact with the human body reliably and safely.
+
+Mechanics Area	Medical Device Applications
+
+Statics & Dynamics:- 	Orthopedic implants must withstand load distribution and patient movement forces.
+Fluid Mechanics:- 	Ventilators and dialysis machines rely on laminar/turbulent flow models for blood, air, or medication delivery.
+Biomechanics	:- Prosthetic joints mimic torque, leverage, and stress distribution in human joints.
+Vibration Analysis:- 	Dental drills and surgical tools are tuned to resonance frequencies for precision.
+Material Mechanics	:- Catheters, stents, and surgical instruments need stress-strain analysis to avoid breakage inside the body.
+
+
+4. Example – How All Three Interact
+
+Ultrasound Imaging Machine:
+
+Math: Digital signal processing algorithms reconstruct images from echoes.
+
+Physics: Uses sound wave propagation and Doppler shift principles.
+
+Mechanics: The probe design optimizes coupling with skin and reduces vibration noise.
