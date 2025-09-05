@@ -1,0 +1,44 @@
+#include "mcu_adc.h"
+
+// ----------------- Read One ADC Sample -----------------
+uint16_t ADC_ReadSample(enum ADC_INPUT_ID id)
+{
+    ADC_ChannelConfTypeDef sConfig = {0};
+    uint16_t adcVal = 0;
+
+    // Use adcData[0] since you have ENABLE_ADC1 only
+    ADC_HandleTypeDef *hadc = &adcData[0].handle;
+
+    // Map enum -> channel
+    switch (id) {
+        case ADC1_INPUT_BLOWER_I:
+            sConfig.Channel      = ADC_CHANNEL_3;   // PA3
+            break;
+        case ADC1_INPUT_VALVE_I:
+            sConfig.Channel      = ADC_CHANNEL_15;  // PC5
+            break;
+        default:
+            return 0;   // Invalid ID
+    }
+
+    sConfig.Rank         = 1;
+    sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
+
+    // Remember selected input in dynamic info
+    adcData[0].selectedInput = id;
+
+    // Configure channel
+    if (HAL_ADC_ConfigChannel(hadc, &sConfig) != HAL_OK) {
+        return 0;
+    }
+
+    // Start + Poll + Read (One-shot)
+    if (HAL_ADC_Start(hadc) == HAL_OK) {
+        if (HAL_ADC_PollForConversion(hadc, HAL_MAX_DELAY) == HAL_OK) {
+            adcVal = HAL_ADC_GetValue(hadc);
+        }
+        HAL_ADC_Stop(hadc);
+    }
+
+    return adcVal;
+}
