@@ -1,0 +1,161 @@
+#include <stdio.h>
+
+// ---------------------- ENUMS ----------------------
+typedef enum {
+    SCREEN_HOME,
+    SCREEN_MENU,
+    SCREEN_SETTINGS,
+    SCREEN_ALARM,
+    SCREEN_MAX
+} Screen_t;
+
+typedef enum {
+    BTN_UP,
+    BTN_DOWN,
+    BTN_LEFT,
+    BTN_RIGHT,
+    BTN_OK,
+    BTN_BACK,
+    BTN_MAX
+} Button_t;
+
+// ---------------------- TYPEDEF ----------------------
+typedef void (*ButtonHandler_t)(Button_t btn);
+
+// ---------------------- GLOBAL ----------------------
+Screen_t currentScreen = SCREEN_HOME;
+
+// ---------------------- DUMMY GLCD ----------------------
+void GLCD_Clear(void) {
+    printf("[GLCD] Clear Screen\n");
+}
+
+void GLCD_Print(const char *msg) {
+    printf("[GLCD] %s\n", msg);
+}
+
+// ---------------------- SCREEN UPDATE ----------------------
+void UpdateScreen(Screen_t scr) {
+    GLCD_Clear();
+    switch (scr) {
+        case SCREEN_HOME:
+            GLCD_Print("Home Screen");
+            GLCD_Print("Press OK to open Menu");
+            break;
+        case SCREEN_MENU:
+            GLCD_Print("Menu Screen");
+            GLCD_Print("UP/DOWN = navigate");
+            GLCD_Print("OK = select, BACK = home");
+            break;
+        case SCREEN_SETTINGS:
+            GLCD_Print("Settings Screen");
+            GLCD_Print("UP/DOWN = change value");
+            GLCD_Print("BACK = menu");
+            break;
+        case SCREEN_ALARM:
+            GLCD_Print("Alarm Screen");
+            GLCD_Print("OK = acknowledge");
+            GLCD_Print("BACK = home");
+            break;
+        default:
+            break;
+    }
+}
+
+// ---------------------- SCREEN HANDLERS ----------------------
+void HomeScreenHandler(Button_t btn) {
+    switch (btn) {
+        case BTN_OK:
+            currentScreen = SCREEN_MENU;
+            UpdateScreen(currentScreen);
+            break;
+        default:
+            break;
+    }
+}
+
+void MenuScreenHandler(Button_t btn) {
+    switch (btn) {
+        case BTN_UP:
+            GLCD_Print("Menu: Previous Item");
+            break;
+        case BTN_DOWN:
+            GLCD_Print("Menu: Next Item");
+            break;
+        case BTN_OK:
+            // Example: go to Settings screen
+            currentScreen = SCREEN_SETTINGS;
+            UpdateScreen(currentScreen);
+            break;
+        case BTN_BACK:
+            currentScreen = SCREEN_HOME;
+            UpdateScreen(currentScreen);
+            break;
+        default:
+            break;
+    }
+}
+
+void SettingsScreenHandler(Button_t btn) {
+    static int value = 0; // Example adjustable value
+    switch (btn) {
+        case BTN_UP:
+            value++;
+            printf("[SETTINGS] Value = %d\n", value);
+            break;
+        case BTN_DOWN:
+            value--;
+            printf("[SETTINGS] Value = %d\n", value);
+            break;
+        case BTN_BACK:
+            currentScreen = SCREEN_MENU;
+            UpdateScreen(currentScreen);
+            break;
+        default:
+            break;
+    }
+}
+
+void AlarmScreenHandler(Button_t btn) {
+    switch (btn) {
+        case BTN_OK:
+            GLCD_Print("Alarm Acknowledged!");
+            break;
+        case BTN_BACK:
+            currentScreen = SCREEN_HOME;
+            UpdateScreen(currentScreen);
+            break;
+        default:
+            break;
+    }
+}
+
+// ---------------------- DISPATCHER ----------------------
+ButtonHandler_t ScreenHandlers[SCREEN_MAX] = {
+    HomeScreenHandler,
+    MenuScreenHandler,
+    SettingsScreenHandler,
+    AlarmScreenHandler
+};
+
+void ProcessButton(Button_t btn) {
+    if (currentScreen < SCREEN_MAX) {
+        ScreenHandlers[currentScreen](btn);
+    }
+}
+
+// ---------------------- MAIN (Demo) ----------------------
+int main(void) {
+    UpdateScreen(currentScreen); // Show initial screen
+
+    // Simulate button presses
+    ProcessButton(BTN_OK);    // Home -> Menu
+    ProcessButton(BTN_DOWN);  // Menu navigation
+    ProcessButton(BTN_OK);    // Menu -> Settings
+    ProcessButton(BTN_UP);    // Increase value
+    ProcessButton(BTN_DOWN);  // Decrease value
+    ProcessButton(BTN_BACK);  // Settings -> Menu
+    ProcessButton(BTN_BACK);  // Menu -> Home
+
+    return 0;
+}
