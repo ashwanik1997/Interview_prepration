@@ -1,0 +1,136 @@
+#ifndef MCU_ADC_H
+#define MCU_ADC_H
+
+#include "stm32f4xx_hal.h"
+#include "os.h"   // Micrium OS-III
+
+// ----------------- Enum for ADC Inputs -----------------
+typedef enum {
+    ADC_INPUT_ID_BASE   = 0x1700,
+    ADC1_INPUT_BLOWER_I = ADC_INPUT_ID_BASE,   // PA3 - ADC1 Channel 3
+    ADC1_INPUT_VALVE_I,                        // PC5 - ADC1 Channel 15
+    ADC_INPUT_ID_LAST
+} ADC_INPUT_ID_t;
+
+// ----------------- Public Variables -----------------
+extern volatile float g_BlowerCurrent_Amp;
+extern volatile float g_ValveCurrent_Amp;
+
+// ----------------- Public Functions -----------------
+Status ADC_initialize(void);                    // Your project’s ADC init
+uint16_t ADC_ReadSample(ADC_INPUT_ID_t id);     // One-shot sample
+float ADC_ConvertToCurrent(uint16_t adcVal);    // Convert to Amp
+void ADC_TaskCreate(void);                      // Create ADC task
+
+#endif // MCU_ADC_H
+
+#include "mcu_adc.h"
+
+// ----------------- External Handles -----------------
+extern ADC_HandleTypeDef hadc1;   // Must be defined in CubeMX-generated code
+
+// ----------------- Global Current Variables -----------------
+volatile float g_BlowerCurrent_Amp = 0.0f;
+volatile float g_ValveCurrent_Amp  = 0.0f;
+
+// ----------------- Mapping from Enum -> ADC Channel -----------------
+typedef struct {
+    ADC_INPUT_ID_t id;
+    uint32_t channel;
+} ADC_ChannelMap_t;
+
+static const ADC_ChannelMap_t adcChannelMap[] = {
+    { ADC1_INPUT_BLOWER_I, ADC_CHANNEL_3  },   // PA3
+    { ADC1_INPUT_VALVE_I,  ADC_CHANNEL_15 },   // PC5
+};
+
+// ----------------- Read One ADC Sample -----------------
+uint16_t ADC_ReadSample(ADC_INPUT_ID_t id)
+{
+    ADC_ChannelConfTypeDef sConfig = {0};
+
+    for (int i = 0; i < sizeof(adcChannelMap)/sizeof(adcChannelMap[0]); i++) {
+        if (adcChannelMap[i].id == id) {
+            sConfig.Channel      = adcChannelMap[i].channel;
+            sConfig.Rank         = 1;
+            sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
+
+            HAL_ADC_ConfigChannel(&hadc1, &sConfig);
+
+            HAL_ADC_Start(&hadc1);
+            HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+            uint16_t adcVal = HAL_ADC_GetValue(&hadc1);
+            HAL_ADC_Stop(&hadc1);
+
+            return adcVal;
+        }
+    }
+    return 0; // Invalid ID
+}
+
+// ----------------- Convert ADC Value to Current -----------------
+float ADC_ConvertToCurrent(uint16_t adcVal)
+{
+    // Example: 1000 counts = 1 Amp (adjust per your hardware scaling)
+    return ((float)adcVal) / 1000.0f;
+}
+
+// ----------------- Micrium OS Task -----------------
+#define ADC_SAMPLE_COUNT   20
+#define TASK_STACK_SIZE    256
+#define TASK_PRIO          5
+
+static OS_TCB   ADC_TaskTCB;
+static CPU_STK  ADC_TaskStk[TASK_STACK_SIZE];
+
+static void ADC_Task(void *p_arg)
+{
+    (void)p_arg;
+    OS_ERR err;
+    uint32_t sum;
+    uint16_t adcVal;
+    float avgCurrent;
+
+    while (1) {
+        /** Blower Current (ADC1 Channel 3 / PA3) */
+        sum = 0;
+        for (int i = 0; i < ADC_SAMPLE_COUNT; i++) {
+            adcVal = ADC_ReadSample(ADC1_INPUT_BLOWER_I);
+            sum += adcVal;
+        }
+        avgCurrent = ADC_ConvertToCurrent(sum / ADC_SAMPLE_COUNT);
+        g_BlowerCurrent_Amp = avgCurrent;
+
+        /** Valve Current (ADC1 Channel 15 / PC5) */
+        sum = 0;
+        for (int i = 0; i < ADC_SAMPLE_COUNT; i++) {
+            adcVal = ADC_ReadSample(ADC1_INPUT_VALVE_I);
+            sum += adcVal;
+        }
+        avgCurrent = ADC_ConvertToCurrent(sum / ADC_SAMPLE_COUNT);
+        g_ValveCurrent_Amp = avgCurrent;
+
+        /** Run every 100ms */
+        OSTimeDlyHMSM(0, 0, 0, 100, OS_OPT_TIME_HMSM_STRICT, &err);
+    }
+}
+
+// ----------------- Task Creation Function -----------------
+void ADC_TaskCreate(void)
+{
+    OS_ERR err;
+
+    OSTaskCreate(&ADC_TaskTCB,
+                 "ADC Sampling Task",
+                 ADC_Task,
+                 0,
+                 TASK_PRIO,
+                 &ADC_TaskStk[0],
+                 TASK_STACK_SIZE / 10,
+                 TASK_STACK_SIZE,
+                 0,
+                 0,
+                 0,
+                 (OS_OPT_TASK_STK_CHK | OS_OPT_TASK_STK_CLR),
+                 &err);
+}
