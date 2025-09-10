@@ -1,0 +1,250 @@
+#ifndef FLASH_STORAGE_H
+#define FLASH_STORAGE_H
+
+#include "stm32f4xx_hal.h"
+#include <stdint.h>
+
+// Addresses (Sector 10 and 11)
+#define FLASH_SECTOR_10_ADDR   0x080C0000U   // Sector 10 (hour log)
+#define FLASH_SECTOR_11_ADDR   0x080E0000U   // Sector 11 (config)
+#define FLASH_SECTOR_SIZE      (128U * 1024U) // 128 KB
+
+// Magic to validate config
+#define CONFIG_MAGIC 0xDEADBEEFUL
+
+// System config structure (adjust types/fields as needed)
+typedef struct {
+    uint32_t magic;            // must be CONFIG_MAGIC to be valid
+    uint8_t  Height;
+    uint8_t  Weight;
+    uint8_t  HeadAP;
+    uint8_t  TrunkAP;
+    uint8_t  FootAP;
+    uint8_t  HeadCLP;
+    uint8_t  TrunkCLP;
+    uint8_t  FootCLP;
+    uint8_t  CycleTime;
+    uint8_t  FowlerBoost;
+    uint8_t  MaxSysPressure;
+    uint8_t  Crossover;
+    uint16_t HeightSlope;
+    uint16_t WeightSlope;
+    uint8_t  ScaleFloatMode;
+    uint16_t ScaleHead;
+    uint8_t  ScaleFoot;
+    uint8_t  DeflateTime;
+    uint32_t HourCounterIdx;   // optional stored index if you want
+    uint32_t SerialNumber[3];
+    uint8_t  reserved[64];     // pad for future use (optional)
+} SystemConfig_t;
+
+// API
+HAL_StatusTypeDef Flash_SaveConfig(const SystemConfig_t *cfg);   // write full config (sector11)
+HAL_StatusTypeDef Flash_LoadConfig(SystemConfig_t *cfg);         // read config; returns HAL_OK if magic valid, HAL_ERROR otherwise
+
+// Hour counter log (sector10)
+HAL_StatusTypeDef Flash_AppendHourCounter(uint32_t hours);       // append hour value (no erase if free space)
+uint32_t Flash_ReadLatestHourCounter(uint32_t *out_hours);       // returns 1 if found, 0 if empty
+
+// Utility
+void Flash_FormatHourLog(void);  // erase sector10 and set to empty
+void Flash_FormatConfig(void);   // erase sector11 (use carefully)
+
+#endif // FLASH_STORAGE_H
+
+
+#include "flashStorage.h"
+#include <string.h>
+
+static void Flash_EraseSectorByNumber(uint32_t Sector)
+{
+    FLASH_EraseInitTypeDef eraseInit;
+    uint32_t sectorError;
+
+    eraseInit.TypeErase    = FLASH_TYPEERASE_SECTORS;
+    eraseInit.Sector       = Sector;
+    eraseInit.NbSectors    = 1;
+    eraseInit.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+
+    HAL_FLASHEx_Erase(&eraseInit, &sectorError);
+}
+
+/* --------------------- CONFIG (Sector 11) --------------------- */
+
+HAL_StatusTypeDef Flash_SaveConfig(const SystemConfig_t *cfg)
+{
+    HAL_StatusTypeDef status = HAL_OK;
+    const uint32_t *data = (const uint32_t *)cfg;
+    size_t words = sizeof(SystemConfig_t) / 4;
+
+    HAL_FLASH_Unlock();
+
+    // Erase Sector 11
+    Flash_EraseSectorByNumber(FLASH_SECTOR_11);
+
+    // Program word by word
+    uint32_t addr = FLASH_SECTOR_11_ADDR;
+    for (size_t i = 0; i < words; i++) {
+        status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, addr, data[i]);
+        if (status != HAL_OK) break;
+        addr += 4;
+    }
+
+    HAL_FLASH_Lock();
+    return status;
+}
+
+/*
+ * Load config from flash into cfg.
+ * Returns HAL_OK if magic is valid, HAL_ERROR if invalid (cfg not touched in that case).
+ */
+HAL_StatusTypeDef Flash_LoadConfig(SystemConfig_t *cfg)
+{
+    const SystemConfig_t *src = (const SystemConfig_t *)FLASH_SECTOR_11_ADDR;
+
+    if (src->magic == CONFIG_MAGIC) {
+        memcpy(cfg, src, sizeof(SystemConfig_t));
+        return HAL_OK;
+    }
+
+    return HAL_ERROR;
+}
+
+/* Optional: erase config sector */
+void Flash_FormatConfig(void)
+{
+    HAL_FLASH_Unlock();
+    Flash_EraseSectorByNumber(FLASH_SECTOR_11);
+    HAL_FLASH_Lock();
+}
+
+/* ------------------- HOUR COUNTER LOG (Sector 10) ------------------
+   Approach: treat sector as array of 32-bit words. Free word == 0xFFFFFFFF.
+   Append: find first free word and program it. When full, erase sector and write first entry.
+   Read latest: scan backward or forward to last non-0xFFFFFFFF.
+------------------------------------------------------------------*/
+
+static uint32_t hour_log_word_count(void)
+{
+    return FLASH_SECTOR_SIZE / 4U; // number of 32-bit words in sector
+}
+
+/* find first free word address in sector; return addr or 0 if full */
+static uint32_t find_first_free_hour_addr(void)
+{
+    uint32_t words = hour_log_word_count();
+    uint32_t *ptr = (uint32_t *)FLASH_SECTOR_10_ADDR;
+
+    for (uint32_t i = 0; i < words; i++) {
+        if (ptr[i] == 0xFFFFFFFFU) {
+            return FLASH_SECTOR_10_ADDR + (i * 4U);
+        }
+    }
+    return 0U; // full
+}
+
+HAL_StatusTypeDef Flash_AppendHourCounter(uint32_t hours)
+{
+    HAL_StatusTypeDef status = HAL_OK;
+    uint32_t addr = find_first_free_hour_addr();
+
+    HAL_FLASH_Unlock();
+
+    if (addr == 0U) {
+        // sector full -> erase and start at beginning
+        Flash_EraseSectorByNumber(FLASH_SECTOR_10);
+        addr = FLASH_SECTOR_10_ADDR;
+    }
+
+    status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, addr, (uint64_t)hours);
+    HAL_FLASH_Lock();
+    return status;
+}
+
+uint32_t Flash_ReadLatestHourCounter(uint32_t *out_hours)
+{
+    uint32_t words = hour_log_word_count();
+    uint32_t *ptr = (uint32_t *)FLASH_SECTOR_10_ADDR;
+
+    // find last written (scan forward remembering last non-0xFFFFFFFF)
+    int32_t last_index = -1;
+    for (uint32_t i = 0; i < words; i++) {
+        if (ptr[i] != 0xFFFFFFFFU) {
+            last_index = (int32_t)i;
+        } else {
+            break; // first free encountered (entries are appended)
+        }
+    }
+
+    if (last_index >= 0) {
+        if (out_hours) *out_hours = ptr[last_index];
+        return 1U;
+    }
+
+    // empty
+    return 0U;
+}
+
+/* erase hour log sector */
+void Flash_FormatHourLog(void)
+{
+    HAL_FLASH_Unlock();
+    Flash_EraseSectorByNumber(FLASH_SECTOR_10);
+    HAL_FLASH_Lock();
+}
+
+#include "flashStorage.h"
+
+void app_init(void)
+{
+    SystemConfig_t cfg;
+
+    if (Flash_LoadConfig(&cfg) != HAL_OK) {
+        // Not present -> create default and save once
+        SystemConfig_t def = {0};
+        def.magic = CONFIG_MAGIC;
+        def.Height = 0x44;
+        def.Weight = 0x5A;
+        def.HeadAP = 0x19;
+        def.TrunkAP = 0x19;
+        def.FootAP = 0x19;
+        def.HeadCLP = 0x14;
+        def.TrunkCLP = 0x14;
+        def.FootCLP = 0x14;
+        def.CycleTime = 0x06;
+        def.FowlerBoost = 0x1E;
+        def.MaxSysPressure = 0x3E;
+        def.Crossover = 0x73;
+        def.HeightSlope = 0x0C3;
+        def.WeightSlope = 0x60;
+        def.ScaleFloatMode = 0x73;
+        def.ScaleHead = 0x0C0;
+        def.ScaleFoot = 0x9A;
+        def.DeflateTime = 0x04;
+        def.SerialNumber[0] = def.SerialNumber[1] = def.SerialNumber[2] = 0;
+        // Save once
+        Flash_SaveConfig(&def);
+        cfg = def;
+    }
+
+    // Read latest hour counter
+    uint32_t latest_hours = 0;
+    if (Flash_ReadLatestHourCounter(&latest_hours)) {
+        // latest_hours contains last stored hour count
+    } else {
+        // No hour stored; you may initialize it
+        Flash_AppendHourCounter(0);
+    }
+}
+
+// Call every hour to append new hour count
+void hourly_tick(void)
+{
+    uint32_t current_hours = 0;
+    if (Flash_ReadLatestHourCounter(&current_hours)) {
+        current_hours++;
+    } else {
+        current_hours = 1;
+    }
+    Flash_AppendHourCounter(current_hours);
+}
