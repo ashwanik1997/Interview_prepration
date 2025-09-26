@@ -1,0 +1,414 @@
+/* =========================
+   file: control.h
+   ========================= */
+#ifndef CONTROL_H
+#define CONTROL_H
+
+#include <stdint.h>
+#include <stdbool.h>
+
+#define NUM_ZONES 6
+#define PRESSURE_TOLERANCE 2    // mmHg hysteresis
+#define PRESSURE_TASK_PERIOD_MS 100
+#define VALVE_TASK_PERIOD_MS 50
+#define ZONE_ACTION_TIMEOUT_MS 5000 // If inflate/deflate > 5s without reaching setpoint => fault
+
+typedef enum {
+    ZONE_HOLD = 0,
+    ZONE_INFLATE,
+    ZONE_DEFLATE
+} ZoneState_t;
+
+typedef struct {
+    uint16_t setpoint;        // target pressure in mmHg
+    uint16_t currentPressure; // last read pressure in mmHg
+    ZoneState_t command;      // decision created by PressureTask
+    uint32_t actionStartTick; // internal: start tick for current action (ms)
+    bool fault;               // true if zone hit timeout/fault
+} ZoneControl_t;
+
+extern ZoneControl_t zones[NUM_ZONES];
+
+typedef enum {
+    ZONE_FOOT_RIGHT = 0, // SV3
+    ZONE_FOOT_LEFT,      // SV4
+    ZONE_TRUNK,          // SV5
+    ZONE_HEAD,           // SV6
+    ZONE_HAND_LEFT,      // SV7
+    ZONE_HAND_RIGHT      // SV8
+} ZoneId_t;
+
+#endif // CONTROL_H
+
+/* =========================
+   file: control.c
+   ========================= */
+#include "control.h"
+
+// initialize with default setpoints (example: Max Inflate by default)
+ZoneControl_t zones[NUM_ZONES] = {
+    {65, 0, ZONE_HOLD, 0, false},
+    {65, 0, ZONE_HOLD, 0, false},
+    {65, 0, ZONE_HOLD, 0, false},
+    {65, 0, ZONE_HOLD, 0, false},
+    {65, 0, ZONE_HOLD, 0, false},
+    {65, 0, ZONE_HOLD, 0, false}
+};
+
+/* =========================
+   file: valve_control.h
+   ========================= */
+#ifndef VALVE_CONTROL_H
+#define VALVE_CONTROL_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef enum {
+    VALVE_SV1 = 0,
+    VALVE_SV2,
+    VALVE_SV3,
+    VALVE_SV4,
+    VALVE_SV5,
+    VALVE_SV6,
+    VALVE_SV7,
+    VALVE_SV8
+} ValveId_t;
+
+void Valve_Init(void);                // configure GPIOs
+void Valve_Set(ValveId_t valve, bool on);
+void Valve_ResetAll(void);
+
+// convenience inline-like wrappers (can be macros if you prefer)
+static inline void SV1_Set(bool on) { Valve_Set(VALVE_SV1, on); }
+static inline void SV2_Set(bool on) { Valve_Set(VALVE_SV2, on); }
+static inline void SV3_Set(bool on) { Valve_Set(VALVE_SV3, on); }
+static inline void SV4_Set(bool on) { Valve_Set(VALVE_SV4, on); }
+static inline void SV5_Set(bool on) { Valve_Set(VALVE_SV5, on); }
+static inline void SV6_Set(bool on) { Valve_Set(VALVE_SV6, on); }
+static inline void SV7_Set(bool on) { Valve_Set(VALVE_SV7, on); }
+static inline void SV8_Set(bool on) { Valve_Set(VALVE_SV8, on); }
+
+#endif // VALVE_CONTROL_H
+
+/* =========================
+   file: valve_control.c
+   =========================
+   NOTE: Replace GPIO writes with your MCU HAL or digital write functions.
+   This example uses pseudo-functions HAL_GPIO_WritePin(port, pin, level).
+   Update valveMap[] to match your board.
+*/
+#include "valve_control.h"
+#include "stm32f4xx_hal.h" // remove/change if a different HAL or placeholders
+
+typedef struct {
+    GPIO_TypeDef *port;
+    uint16_t pin;
+} ValveGPIO_t;
+
+// TODO: Update mapping per your PCB
+static const ValveGPIO_t valveMap[8] = {
+    {GPIOA, GPIO_PIN_0},  // SV1
+    {GPIOA, GPIO_PIN_1},  // SV2
+    {GPIOB, GPIO_PIN_0},  // SV3
+    {GPIOB, GPIO_PIN_1},  // SV4
+    {GPIOC, GPIO_PIN_0},  // SV5
+    {GPIOC, GPIO_PIN_1},  // SV6
+    {GPIOD, GPIO_PIN_0},  // SV7
+    {GPIOD, GPIO_PIN_1}   // SV8
+};
+
+void Valve_Init(void)
+{
+    // Initialize relevant GPIO ports/pins as outputs (push-pull).
+    // Replace with your HAL's GPIO init code. Example for STM HAL omitted here.
+    // This placeholder assumes pins already configured in board init.
+    Valve_ResetAll();
+}
+
+void Valve_Set(ValveId_t valve, bool on)
+{
+    if ((int)valve < 0 || (int)valve > 7) return;
+
+    if (on) {
+        HAL_GPIO_WritePin(valveMap[valve].port, valveMap[valve].pin, GPIO_PIN_SET);
+    } else {
+        HAL_GPIO_WritePin(valveMap[valve].port, valveMap[valve].pin, GPIO_PIN_RESET);
+    }
+}
+
+void Valve_ResetAll(void)
+{
+    for (int i = 0; i < 8; ++i) {
+        HAL_GPIO_WritePin(valveMap[i].port, valveMap[i].pin, GPIO_PIN_RESET);
+    }
+}
+
+/* =========================
+   file: platform.h
+   =========================
+   Small platform helpers: tick (ms) and critical section macros.
+   Replace OSTimeGet or RTOS time calls as needed.
+*/
+#ifndef PLATFORM_H
+#define PLATFORM_H
+
+#include <stdint.h>
+#include "stm32f4xx_hal.h" // for HAL_GetTick()
+
+// returns system tick in milliseconds
+static inline uint32_t plat_get_tick_ms(void) {
+    return HAL_GetTick(); // or your RTOS tick->ms conversion
+}
+
+// Simple critical section (portable): disable/enable interrupts.
+// Replace with OS mutex if preferred (better in multi-core / RTOS environment)
+static inline void plat_enter_critical(void) { __disable_irq(); }
+static inline void plat_exit_critical(void)  { __enable_irq(); }
+
+#endif // PLATFORM_H
+
+/* =========================
+   file: pressure_task.c
+   =========================
+   Task1: read sensors and set zones[].command decisions
+*/
+#include "control.h"
+#include "platform.h"
+#include <string.h>
+
+// Stub: Replace with actual sensor read (ADC -> mmHg conversion)
+uint16_t ReadPressureSensor_mmHg(uint8_t zoneId)
+{
+    // TODO: Implement ADC read and convert to mmHg.
+    // For now, return 0.
+    (void)zoneId;
+    return 0;
+}
+
+void PressureTask(void *p_arg)
+{
+    (void)p_arg;
+
+    const uint32_t period_ms = PRESSURE_TASK_PERIOD_MS;
+
+    while (1) {
+        uint32_t tick = plat_get_tick_ms();
+
+        for (uint8_t i = 0; i < NUM_ZONES; ++i) {
+            uint16_t pressure = ReadPressureSensor_mmHg(i);
+
+            // protect write to shared structure
+            plat_enter_critical();
+            zones[i].currentPressure = pressure;
+
+            // only update command if not in a faulted state
+            if (!zones[i].fault) {
+                uint16_t sp = zones[i].setpoint;
+
+                if (pressure < (sp > PRESSURE_TOLERANCE ? sp - PRESSURE_TOLERANCE : 0)) {
+                    // start action timer if changed from previous state
+                    if (zones[i].command != ZONE_INFLATE) {
+                        zones[i].command = ZONE_INFLATE;
+                        zones[i].actionStartTick = tick;
+                    }
+                } else if (pressure > sp + PRESSURE_TOLERANCE) {
+                    if (zones[i].command != ZONE_DEFLATE) {
+                        zones[i].command = ZONE_DEFLATE;
+                        zones[i].actionStartTick = tick;
+                    }
+                } else {
+                    // Within tolerance -> HOLD
+                    zones[i].command = ZONE_HOLD;
+                    zones[i].actionStartTick = 0;
+                }
+            }
+            plat_exit_critical();
+        }
+
+        // sleep/delay for period (use OSTimeDly in Micrium, or HAL_Delay if bare)
+        // Example with HAL_Delay:
+        HAL_Delay(period_ms);
+    }
+}
+
+/* =========================
+   file: valve_task.c
+   =========================
+   Task2: read zones[].command and actuate valves. Also handle per-zone timeouts/faults.
+*/
+#include "control.h"
+#include "valve_control.h"
+#include "platform.h"
+
+void ValveTask(void *p_arg)
+{
+    (void)p_arg;
+
+    const uint32_t period_ms = VALVE_TASK_PERIOD_MS;
+
+    while (1) {
+        // Snapshot commands under critical section to avoid long-disabled interrupts
+        ZoneState_t snapshot[NUM_ZONES];
+        uint16_t snapshot_pressure[NUM_ZONES];
+        uint16_t snapshot_setpoint[NUM_ZONES];
+        bool snapshot_fault[NUM_ZONES];
+        uint32_t snapshot_actionStart[NUM_ZONES];
+
+        plat_enter_critical();
+        for (uint8_t i = 0; i < NUM_ZONES; ++i) {
+            snapshot[i] = zones[i].command;
+            snapshot_pressure[i] = zones[i].currentPressure;
+            snapshot_setpoint[i] = zones[i].setpoint;
+            snapshot_fault[i] = zones[i].fault;
+            snapshot_actionStart[i] = zones[i].actionStartTick;
+        }
+        plat_exit_critical();
+
+        bool anyInflate = false;
+        bool anyDeflate = false;
+        for (uint8_t i = 0; i < NUM_ZONES; ++i) {
+            if (snapshot_fault[i]) continue; // skip faulted zones
+            if (snapshot[i] == ZONE_INFLATE) anyInflate = true;
+            if (snapshot[i] == ZONE_DEFLATE) anyDeflate = true;
+        }
+
+        // Actuation policy:
+        // Inflate has precedence over deflate (so inflater opens SV1)
+        if (anyInflate) {
+            SV1_Set(true); // enable inflate path
+            // Open zone valves that request inflate; close others
+            SV3_Set(snapshot[ZONE_FOOT_RIGHT] == ZONE_INFLATE);
+            SV4_Set(snapshot[ZONE_FOOT_LEFT]  == ZONE_INFLATE);
+            SV5_Set(snapshot[ZONE_TRUNK]      == ZONE_INFLATE);
+            SV6_Set(snapshot[ZONE_HEAD]       == ZONE_INFLATE);
+            SV7_Set(snapshot[ZONE_HAND_LEFT]  == ZONE_INFLATE);
+            SV8_Set(snapshot[ZONE_HAND_RIGHT] == ZONE_INFLATE);
+        } else if (anyDeflate) {
+            SV1_Set(false); // open exhaust path
+            // Open only those zone valves that request deflate; close others
+            SV3_Set(snapshot[ZONE_FOOT_RIGHT] == ZONE_DEFLATE);
+            SV4_Set(snapshot[ZONE_FOOT_LEFT]  == ZONE_DEFLATE);
+            SV5_Set(snapshot[ZONE_TRUNK]      == ZONE_DEFLATE);
+            SV6_Set(snapshot[ZONE_HEAD]       == ZONE_DEFLATE);
+            SV7_Set(snapshot[ZONE_HAND_LEFT]  == ZONE_DEFLATE);
+            SV8_Set(snapshot[ZONE_HAND_RIGHT] == ZONE_DEFLATE);
+        } else {
+            // All hold -> close all valves
+            SV1_Set(false);
+            SV3_Set(false); SV4_Set(false); SV5_Set(false);
+            SV6_Set(false); SV7_Set(false); SV8_Set(false);
+        }
+
+        // Timeout + fault handling per zone
+        uint32_t now = plat_get_tick_ms();
+        plat_enter_critical();
+        for (uint8_t i = 0; i < NUM_ZONES; ++i) {
+            if (zones[i].fault) continue;
+
+            ZoneState_t cmd = zones[i].command;
+            if (cmd == ZONE_INFLATE || cmd == ZONE_DEFLATE) {
+                if (zones[i].actionStartTick == 0) {
+                    zones[i].actionStartTick = now;
+                } else {
+                    uint32_t elapsed = (now >= zones[i].actionStartTick) ? (now - zones[i].actionStartTick) : 0;
+                    // If taking too long => set fault
+                    if (elapsed > ZONE_ACTION_TIMEOUT_MS) {
+                        zones[i].fault = true;
+                        zones[i].command = ZONE_HOLD;
+                        // Close the valve (we will also close at end of loop)
+                    }
+                }
+            } else {
+                // HOLD => clear action start tick
+                zones[i].actionStartTick = 0;
+            }
+        }
+        plat_exit_critical();
+
+        if (period_ms) HAL_Delay(period_ms);
+    }
+}
+
+/* =========================
+   file: main.c
+   =========================
+   Example system init and task creation.
+   Replace RTOS task creation with Micrium calls as needed.
+*/
+#include "control.h"
+#include "valve_control.h"
+#include <stdio.h>
+
+// Forward declarations of task entry functions (already defined above)
+void PressureTask(void *p_arg);
+void ValveTask(void *p_arg);
+
+// Example: set redistribution mode or max inflate by writing setpoints
+void SetMaxInflateMode(void)
+{
+    plat_enter_critical();
+    for (uint8_t i = 0; i < NUM_ZONES; ++i) {
+        zones[i].setpoint = 65;
+        zones[i].fault = false;
+        zones[i].command = ZONE_HOLD;
+        zones[i].actionStartTick = 0;
+    }
+    plat_exit_critical();
+}
+
+void SetRedistributionMode(uint16_t userSetpoint)
+{
+    plat_enter_critical();
+    for (uint8_t i = 0; i < NUM_ZONES; ++i) {
+        zones[i].setpoint = userSetpoint;
+        zones[i].fault = false;
+        zones[i].command = ZONE_HOLD;
+        zones[i].actionStartTick = 0;
+    }
+    plat_exit_critical();
+}
+
+int main(void)
+{
+    // HAL/board init
+    HAL_Init();
+    SystemClock_Config(); // implement for your board
+    // GPIO init for valves must be performed in Valve_Init or here
+    Valve_Init();
+
+    // Example: start in max inflate
+    SetMaxInflateMode();
+
+    // Create tasks:
+    // If using Micrium OS v3: OSTaskCreate(...) etc.
+    // Here we show pseudo-creation; replace with your RTOS API.
+    // Example (Micrium): OSTaskCreate(&PressureTaskTCB, "PressureTask", PressureTask, ...);
+    // Example (baremetal testing): call tasks in separate threads or run loops.
+
+    // For example only: run both tasks in separate threads or call them in scheduler.
+    // In an RTOS environment, create tasks. Below is pseudocode:
+    //
+    // RTOS_CreateTask(PressureTask, "PressureTask", stack1, priority1);
+    // RTOS_CreateTask(ValveTask, "ValveTask", stack2, priority2);
+    //
+    // For test (no RTOS), you could call them; but they are infinite loops so in real system use RTOS.
+
+    // Placeholder: return to indicate init done.
+    while (1) {
+        HAL_Delay(1000);
+    }
+    return 0;
+}
+
+/* =========================
+   NOTES & Integration tips
+   =========================
+- Replace HAL_Delay/HAL_GetTick/SystemClock_Config with your platform/RTOS implementations.
+- In Micrium OS, use OSTimeDlyHMSM(...) instead of HAL_Delay, and use OS-level critical sections or OSMutex for zones[] (preferred).
+- Replace ReadPressureSensor_mmHg() with concrete ADC conversion.
+- Adjust ZONE_ACTION_TIMEOUT_MS to tune fault sensitivity.
+- Consider debouncing and averaging for pressure readings (filtering) to avoid transient chattering.
+- If you want sequential inflation (one zone at a time), add scheduling logic in ValveTask: when anyInflate is true, choose one zone at a time to open (helps with small compressors).
+- For safety-critical systems, add watchdogs, E-stop, and telemetry of faults / pressures.
+*/
